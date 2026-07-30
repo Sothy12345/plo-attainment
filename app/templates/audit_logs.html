@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.audit-toolbar{display:grid;grid-template-columns:1.3fr .7fr .7fr auto auto;gap:12px;align-items:end;margin:18px 0}.audit-toolbar label{font-weight:700;color:#071b54}.audit-toolbar input,.audit-toolbar select{width:100%;border:1px solid #dbe4f3;border-radius:10px;padding:12px 14px;background:#fff}.audit-card{background:#fff;border:1px solid #e5ecf7;border-radius:16px;padding:18px;margin-bottom:16px}.audit-table{width:100%;border-collapse:separate;border-spacing:0}.audit-table th{background:#f7f9fd;color:#071b54;font-weight:800;padding:14px;text-align:left}.audit-table td{padding:14px;border-bottom:1px solid #edf2fa;vertical-align:top}.audit-table tr:last-child td{border-bottom:0}.audit-badge{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 10px;font-weight:800;font-size:12px}.audit-badge.green{background:#eaf8ef;color:#18733a}.audit-badge.orange{background:#fff4e5;color:#a65b00}.audit-badge.red{background:#ffecec;color:#b42318}.audit-badge.blue{background:#eaf2ff;color:#0b63ce}.audit-badge.gray{background:#eef2f7;color:#344054}.audit-actions{display:flex;gap:10px;align-items:center}.audit-icon{border:0;background:transparent;color:#0b63f6;font-size:18px}.audit-icon.delete{color:#ff2b2b}.audit-add-form{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.audit-add-form label{font-weight:700;color:#071b54}.audit-add-form input,.audit-add-form select{width:100%;border:1px solid #dbe4f3;border-radius:10px;padding:11px 13px}.audit-add-form .wide{grid-column:span 2}.audit-empty{text-align:center;padding:35px;color:#667085}.audit-primary{background:#0b63f6;color:#fff;border:0;border-radius:10px;padding:12px 16px;font-weight:800;text-decoration:none;display:inline-flex;gap:8px;align-items:center;justify-content:center}.audit-secondary{background:#eef4ff;color:#0b63f6;border:0;border-radius:10px;padding:12px 16px;font-weight:800;text-decoration:none;display:inline-flex;gap:8px;align-items:center;justify-content:center}.audit-danger{background:#fff;border:0;color:#ff2b2b}.audit-desc{max-width:330px}.audit-top{display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.audit-top h1{margin-bottom:6px}.audit-code{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;background:#f3f6fb;border-radius:8px;padding:4px 8px}@media(max-width:1000px){.audit-toolbar,.audit-add-form{grid-template-columns:1fr}.audit-add-form .wide{grid-column:span 1}.audit-top{flex-direction:column}}
+</style>
+
+<div class="admin-page-title audit-top">
+  <div>
+    <div class="admin-breadcrumb"><a href="/dashboard">Dashboard</a><i class="bi bi-chevron-right"></i><span>Audit Logs</span></div>
+    <h1>Audit Logs</h1>
+    <p>{{ page.description }}</p>
+  </div>
+  <a class="audit-primary" href="/admin/audit-logs/export"><i class="bi bi-download"></i>Export CSV</a>
+</div>
+
+{% if request.query_params.get("created") %}<div class="admin-info-box success"><i class="bi bi-check-circle"></i><span>Audit log added successfully.</span></div>{% endif %}
+{% if request.query_params.get("updated") %}<div class="admin-info-box success"><i class="bi bi-check-circle"></i><span>Audit log updated successfully.</span></div>{% endif %}
+{% if request.query_params.get("deleted") %}<div class="admin-info-box success"><i class="bi bi-trash"></i><span>Audit log deleted successfully.</span></div>{% endif %}
+
+<div class="admin-metric-grid">
+  <section class="admin-metric-card"><span class="admin-stat-icon blue"><i class="bi bi-clipboard2-check"></i></span><div><em>Total Logs</em><strong>{{ page.total }}</strong></div></section>
+  <section class="admin-metric-card"><span class="admin-stat-icon green"><i class="bi bi-check-circle"></i></span><div><em>Success</em><strong>{{ page.success_total }}</strong></div></section>
+  <section class="admin-metric-card"><span class="admin-stat-icon orange"><i class="bi bi-pencil-square"></i></span><div><em>Updates</em><strong>{{ page.update_total }}</strong></div></section>
+  <section class="admin-metric-card"><span class="admin-stat-icon red"><i class="bi bi-trash"></i></span><div><em>Delete Actions</em><strong>{{ page.delete_total }}</strong></div></section>
+</div>
+
+<section class="audit-card">
+  <form class="audit-toolbar" method="get" action="/admin/audit-logs">
+    <label>Search<input type="search" name="q" value="{{ page.query }}" placeholder="Search user, module, action, description, IP..."></label>
+    <label>Action<select name="action"><option value="">All Actions</option>{% for action in page.actions %}<option value="{{ action }}" {% if page.action_filter == action %}selected{% endif %}>{{ action }}</option>{% endfor %}</select></label>
+    <label>Status<select name="status"><option value="">All Status</option>{% for status in page.statuses %}<option value="{{ status }}" {% if page.status_filter == status %}selected{% endif %}>{{ status }}</option>{% endfor %}</select></label>
+    <button class="audit-primary" type="submit"><i class="bi bi-funnel"></i>Filter</button>
+    <a class="audit-secondary" href="/admin/audit-logs"><i class="bi bi-x-circle"></i>Clear</a>
+  </form>
+  <strong>{{ page.filtered_total }}</strong> records shown
+</section>
+
+<section class="audit-card" id="add-audit-log">
+  <h2>Add Audit Log</h2>
+  <form method="post" action="/admin/audit-logs/create" class="audit-add-form">
+    <label>Date & Time<input name="date_time" value="{{ request.query_params.get('now') or '' }}" placeholder="2026-07-09 09:00" required></label>
+    <label>User<input name="user_name" value="{{ user.name }}" required></label>
+    <label>Module<input name="module" placeholder="Student Management" required></label>
+    <label>Action<select name="action"><option>CREATE</option><option>UPDATE</option><option>DELETE</option><option>EXPORT</option><option>LOGIN</option></select></label>
+    <label>Status<select name="status"><option>Success</option><option>Failed</option></select></label>
+    <label>Item / Record<input name="item_record" placeholder="Record ID or name" required></label>
+    <label>IP Address<input name="ip_address" value="127.0.0.1" required></label>
+    <label class="wide">Description<input name="description" placeholder="Describe what changed" required></label>
+    <button class="audit-primary" type="submit"><i class="bi bi-plus-lg"></i>Add Log</button>
+  </form>
+</section>
+
+<section class="audit-card">
+  <h2>Audit Log List</h2>
+  <div class="table-responsive">
+    <table class="audit-table">
+      <thead><tr><th>No.</th><th>Date & Time</th><th>User</th><th>Module</th><th>Action</th><th>Description</th><th>Item</th><th>IP</th><th>Status</th><th>Action</th></tr></thead>
+      <tbody>
+        {% for record in page.records %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td>{{ record.date_time }}</td>
+          <td>{{ record.user_name }}</td>
+          <td>{{ record.module }}</td>
+          <td><span class="audit-badge {{ 'green' if record.action == 'CREATE' else 'orange' if record.action == 'UPDATE' else 'red' if record.action == 'DELETE' else 'blue' }}">{{ record.action }}</span></td>
+          <td class="audit-desc">{{ record.description }}</td>
+          <td><span class="audit-code">{{ record.item_record }}</span></td>
+          <td>{{ record.ip_address }}</td>
+          <td><span class="audit-badge {{ 'green' if record.status == 'Success' else 'red' }}">{{ record.status }}</span></td>
+          <td>
+            <div class="audit-actions">
+              <button class="audit-icon" type="button" title="Edit" onclick="openAuditEdit('{{ record.id }}','{{ record.date_time|e }}','{{ record.user_name|e }}','{{ record.module|e }}','{{ record.action|e }}','{{ record.status|e }}','{{ record.item_record|e }}','{{ record.ip_address|e }}','{{ record.description|e }}')"><i class="bi bi-pencil"></i></button>
+              <form method="post" action="/admin/audit-logs/{{ record.id }}/delete" onsubmit="return confirm('Delete this audit log?');"><button class="audit-icon delete" type="submit" title="Delete"><i class="bi bi-trash"></i></button></form>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="10" class="audit-empty"><i class="bi bi-search"></i><br>No audit logs found.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="audit-card" id="edit-audit-card" style="display:none">
+  <h2>Edit Audit Log</h2>
+  <form id="edit-audit-form" method="post" class="audit-add-form">
+    <label>Date & Time<input id="edit-date-time" name="date_time" required></label>
+    <label>User<input id="edit-user-name" name="user_name" required></label>
+    <label>Module<input id="edit-module" name="module" required></label>
+    <label>Action<select id="edit-action" name="action"><option>CREATE</option><option>UPDATE</option><option>DELETE</option><option>EXPORT</option><option>LOGIN</option></select></label>
+    <label>Status<select id="edit-status" name="status"><option>Success</option><option>Failed</option></select></label>
+    <label>Item / Record<input id="edit-item-record" name="item_record" required></label>
+    <label>IP Address<input id="edit-ip-address" name="ip_address" required></label>
+    <label class="wide">Description<input id="edit-description" name="description" required></label>
+    <button class="audit-primary" type="submit"><i class="bi bi-save"></i>Save Update</button>
+    <button class="audit-secondary" type="button" onclick="document.getElementById('edit-audit-card').style.display='none'">Cancel</button>
+  </form>
+</section>
+
+<script>
+function openAuditEdit(id, dateTime, userName, moduleName, action, status, itemRecord, ipAddress, description){
+  const card = document.getElementById('edit-audit-card');
+  document.getElementById('edit-audit-form').action = `/admin/audit-logs/${id}/update`;
+  document.getElementById('edit-date-time').value = dateTime;
+  document.getElementById('edit-user-name').value = userName;
+  document.getElementById('edit-module').value = moduleName;
+  document.getElementById('edit-action').value = action;
+  document.getElementById('edit-status').value = status;
+  document.getElementById('edit-item-record').value = itemRecord;
+  document.getElementById('edit-ip-address').value = ipAddress;
+  document.getElementById('edit-description').value = description;
+  card.style.display = 'block';
+  card.scrollIntoView({behavior:'smooth', block:'start'});
+}
+</script>
+{% endblock %}

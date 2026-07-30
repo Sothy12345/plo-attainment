@@ -1,0 +1,400 @@
+{% extends "base.html" %}
+{% block content %}
+{% if user.role.value == "super_admin" %}
+<div class="admin-dashboard-heading">
+  <div>
+    <h1>Welcome back, {{ user.name }}! <span>👋</span></h1>
+    <p>Live OBE data for the selected Study Period and programme scope.</p>
+  </div>
+  <div class="admin-filters">
+    <form class="admin-filter" method="get" action="/dashboard">
+      <i class="bi bi-mortarboard"></i>
+      <span>Programme Scope</span>
+      <select name="program_id" onchange="this.form.submit()">
+        <option value="">All Programmes</option>
+        {% for program in dashboard_program_options %}
+        <option value="{{ program.id }}" {{ 'selected' if dashboard_selected_program_id == program.id else '' }}>{{ program.code }} · {{ program.name }}</option>
+        {% endfor %}
+      </select>
+    </form>
+    <div class="admin-filter">
+      <i class="bi bi-calendar2-week"></i>
+      <span>Study Period</span>
+      <strong>{{ dashboard_period.label if dashboard_period else "No active Study Period" }}</strong>
+    </div>
+    <a class="admin-refresh" href="/dashboard{% if dashboard_selected_program_id %}?program_id={{ dashboard_selected_program_id }}{% endif %}"><i class="bi bi-arrow-clockwise"></i>Refresh</a>
+  </div>
+</div>
+
+<div class="admin-stat-grid mb-4">
+  <a class="admin-stat-card" href="/admin/users"><span class="admin-stat-icon blue"><i class="bi bi-people"></i></span><strong>{{ users|length }}</strong><em>Users in Scope</em><small>Manage users <i class="bi bi-arrow-right"></i></small></a>
+  <a class="admin-stat-card" href="/admin/programmes"><span class="admin-stat-icon green"><i class="bi bi-mortarboard"></i></span><strong>{{ programs|length }}</strong><em>Programmes</em><small>Manage programmes <i class="bi bi-arrow-right"></i></small></a>
+  <a class="admin-stat-card" href="/admin/programme-mapping{% if dashboard_selected_program_id %}?program_id={{ dashboard_selected_program_id }}{% endif %}"><span class="admin-stat-icon purple"><i class="bi bi-book"></i></span><strong>{{ courses|length }}</strong><em>Courses</em><small>Manage mapping <i class="bi bi-arrow-right"></i></small></a>
+  <a class="admin-stat-card" href="/admin/students"><span class="admin-stat-icon orange"><i class="bi bi-people-fill"></i></span><strong>{{ students|length }}</strong><em>Active Students</em><small>{{ dashboard_period.label if dashboard_period else "Current scope" }} <i class="bi bi-arrow-right"></i></small></a>
+  <a class="admin-stat-card" href="/admin/plos{% if dashboard_selected_program_id %}?program_id={{ dashboard_selected_program_id }}{% endif %}"><span class="admin-stat-icon cyan"><i class="bi bi-bullseye"></i></span><strong>{{ plos|length }}</strong><em>Current-version PLOs</em><small>Manage PLO versions <i class="bi bi-arrow-right"></i></small></a>
+</div>
+
+<div class="admin-dashboard-grid">
+  <section class="admin-panel admin-panel-wide">
+    <div class="admin-panel-head">
+      <h2>PLO Attainment Overview</h2>
+      <span class="dashboard-scope-note">{{ dashboard_period.label if dashboard_period else "No Study Period" }}</span>
+    </div>
+    {% if dashboard_plo_rows %}
+    <div class="plo-bars" style="grid-template-columns: repeat({{ dashboard_plo_rows|length }}, 1fr)">
+      <div class="chart-axis"><span>100%</span><span>80%</span><span>60%</span><span>40%</span><span>20%</span><span>0%</span></div>
+      <div class="target-line" style="top: {{ 100 - dashboard_target }}%"><span>Average target ({{ dashboard_target }}%)</span></div>
+      {% for item in dashboard_plo_rows %}
+      <div class="plo-bar-item" title="{{ item.programmes }} · Target {{ item.target }}%">
+        <div class="plo-bar {{ 'no-data' if item.value is none else 'low' if item.value < item.target else '' }}" style="height: {{ item.value if item.value is not none else 3 }}%"><span>{{ item.value ~ '%' if item.value is not none else '—' }}</span></div>
+        <small>{{ item.code }}</small>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="dashboard-empty"><i class="bi bi-bar-chart"></i>No active PLO version is available for this programme scope.</div>
+    {% endif %}
+    <div class="text-center mt-3">
+      <a class="report-link" href="/admin/reports">View PLO attainment reports <i class="bi bi-arrow-right"></i></a>
+    </div>
+  </section>
+
+  <section class="admin-panel">
+    <h2>PLO Attainment Status</h2>
+    <div class="status-layout">
+      <div class="status-donut" style="background: conic-gradient(#2db861 0 {{ dashboard_plo_summary.achieved_percentage }}%, #ef4444 {{ dashboard_plo_summary.achieved_percentage }}% {{ dashboard_plo_summary.measured_percentage }}%, #94a3b8 {{ dashboard_plo_summary.measured_percentage }}% 100%)">
+        <div><strong>{{ dashboard_plo_rows|length }}</strong><span>PLO indicators</span></div>
+      </div>
+      <div class="status-legend">
+        <div><span class="legend-dot green"></span><span>Achieved</span><strong>{{ dashboard_plo_summary.achieved }}</strong></div>
+        <div><span class="legend-dot red"></span><span>Not Achieved</span><strong>{{ dashboard_plo_summary.not_achieved }}</strong></div>
+        <div><span class="legend-dot gray"></span><span>No score data</span><strong>{{ dashboard_plo_summary.no_data }}</strong></div>
+      </div>
+    </div>
+    <div class="average-box">Overall Average Attainment <strong>{{ dashboard_plo_summary.average ~ '%' if dashboard_plo_summary.average is not none else 'No data' }}</strong></div>
+  </section>
+
+  <section class="admin-panel">
+    <h2>Recent Activities</h2>
+    <div class="activity-list">
+      {% for item in recent_activities %}
+      <div><i class="bi {{ item.icon }} {{ item.tone }}"></i><span>{{ item.text }}</span><time>{{ item.meta }}</time></div>
+      {% else %}
+      <div><i class="bi bi-info-circle blue"></i><span>No audit activity has been recorded.</span><time>—</time></div>
+      {% endfor %}
+    </div>
+    <a class="panel-bottom-link" href="/admin/audit-logs">View all activities <i class="bi bi-arrow-right"></i></a>
+  </section>
+
+  <section class="admin-panel">
+    <h2>System Summary</h2>
+    <table class="table table-sm admin-summary-table">
+      <tr><td><i class="bi bi-bank"></i>Faculties</td><td>{{ faculties|length }}</td></tr>
+      <tr><td><i class="bi bi-mortarboard"></i>Programmes</td><td>{{ programs|length }}</td></tr>
+      <tr><td><i class="bi bi-book"></i>Courses</td><td>{{ courses|length }}</td></tr>
+      <tr><td><i class="bi bi-people"></i>Active Students (Study Period)</td><td>{{ students|length }}</td></tr>
+      <tr><td><i class="bi bi-clipboard-check"></i>Assessments</td><td>{{ assessments|length }}</td></tr>
+    </table>
+    <a class="panel-bottom-link" href="/admin/reports">View reports <i class="bi bi-arrow-right"></i></a>
+  </section>
+
+  <section class="admin-panel">
+    <h2>Quick Actions</h2>
+    <div class="quick-actions">
+      <a href="/admin/users#add-user"><i class="bi bi-person-plus"></i>Add New User</a>
+      <a href="/admin/programmes#add-programme"><i class="bi bi-mortarboard"></i>Add Programme</a>
+      <a href="/admin/programme-mapping{% if dashboard_selected_program_id %}?program_id={{ dashboard_selected_program_id }}{% endif %}"><i class="bi bi-book"></i>Add Course</a>
+      <a href="/admin/plos{% if dashboard_selected_program_id %}?program_id={{ dashboard_selected_program_id }}#add-plo{% else %}#add-plo{% endif %}"><i class="bi bi-bullseye"></i>Add PLO</a>
+      <a href="/admin/targets{% if dashboard_selected_program_id %}?program_id={{ dashboard_selected_program_id }}{% endif %}"><i class="bi bi-graph-up"></i>Set PLO Target</a>
+      <a href="/admin/settings"><i class="bi bi-gear"></i>System Settings</a>
+    </div>
+    <a class="guide-link" href="/admin/settings"><i class="bi bi-sliders"></i>Review dashboard and academic settings <i class="bi bi-arrow-right"></i></a>
+  </section>
+</div>
+{% elif user.role.value == "dean" %}
+{% set counts = dean_overview.counts if dean_overview else none %}
+{% set summary = dean_overview.summary if dean_overview else none %}
+<style>
+.dd-trend{display:grid;gap:11px}
+.dd-trend p{display:grid;grid-template-columns:92px 1fr 86px;align-items:center;gap:10px;margin:0;font-size:12px;color:#294064}
+.dd-trend .track{height:20px;border-radius:6px;background:#eef2f8;overflow:hidden;position:relative}
+.dd-trend .track b{display:block;height:100%;border-radius:6px}
+.dd-trend .track i{position:absolute;top:0;bottom:0;width:2px;background:#dc3545}
+.dd-trend em{font-style:normal;font-weight:800;color:#102653;text-align:right}
+.dd-green{background:#16a34a}.dd-orange{background:#f59e0b}.dd-red{background:#dc3545}.dd-grey{background:#cbd5e1}
+.dd-score{display:flex;align-items:baseline;gap:11px;margin-bottom:6px}
+.dd-score strong{font-size:38px;color:#0b2355;line-height:1}.dd-score span{color:#6b7a91;font-size:13px}
+.dd-note{margin:12px 0 0;color:#6b7a91;font-size:12px}
+</style>
+<div class="dean-dashboard-head">
+  <div>
+    <h1>Welcome back, {{ user.name }}!</h1>
+    <a href="/dean/profile">{{ dean_faculty.name if dean_faculty else "Assigned Faculty" }}</a>
+  </div>
+</div>
+
+<div class="admin-metric-grid five">
+  {% for label, value, icon, tone, hint in [
+    ("Programmes", counts.programmes if counts else 0, "bi-mortarboard", "blue", "In your faculty"),
+    ("Staff Members", counts.members if counts else 0, "bi-person-fill", "green", "Coordinators and lecturers"),
+    ("Assessments", counts.assessments if counts else 0, "bi-file-earmark-bar-graph", "purple", (counts.assessments_scored ~ " with marks") if counts else ""),
+    ("PLOs Monitored", counts.plos if counts else 0, "bi-bullseye", "orange", "Across programmes"),
+    ("Average PLO Attainment", (summary.plo_average ~ "%") if summary and summary.plo_average is not none else "No data", "bi-graph-up-arrow", "cyan", "Faculty average")
+  ] %}
+  <section class="admin-metric-card"><span class="admin-stat-icon {{ tone }}"><i class="bi {{ icon }}"></i></span><div><em>{{ label }}</em><strong>{{ value }}</strong><small>{{ hint }}</small></div></section>
+  {% endfor %}
+</div>
+
+<div class="dean-grid two">
+  <section class="admin-panel">
+    <div class="admin-panel-head"><h2>Faculty PLO Attainment</h2><a class="report-link" href="/dean/plo-performance">Open dashboard</a></div>
+    {% if summary and summary.plo_average is not none %}
+    <div class="dd-score"><strong>{{ summary.plo_average }}%</strong><span>Target 70% · {{ summary.plo_reporting_count }} of {{ summary.programme_count }} programmes reporting</span></div>
+    <div class="dd-trend">
+      <p><span>Faculty average</span><span class="track"><b class="{{ 'dd-green' if summary.plo_average >= 70 else 'dd-orange' if summary.plo_average >= 60 else 'dd-red' }}" style="width: {{ summary.plo_average }}%"></b><i style="left:70%"></i></span><em>{{ summary.plo_average }}%</em></p>
+      <p><span>PEO average</span><span class="track">{% if summary.peo_average is not none %}<b class="{{ 'dd-green' if summary.peo_average >= 70 else 'dd-orange' if summary.peo_average >= 60 else 'dd-red' }}" style="width: {{ summary.peo_average }}%"></b>{% else %}<b class="dd-grey" style="width:100%"></b>{% endif %}<i style="left:70%"></i></span><em>{% if summary.peo_average is not none %}{{ summary.peo_average }}%{% else %}No data{% endif %}</em></p>
+    </div>
+    <p class="dd-note">On track {{ summary.on_track }} · at risk {{ summary.at_risk }} · below target {{ summary.below_target }} of {{ counts.plos if counts else 0 }} PLOs.</p>
+    {% else %}
+    <p class="dd-note">No student scores have been entered for this faculty yet, so attainment cannot be calculated.</p>
+    {% endif %}
+    <a class="panel-bottom-link" href="/dean/faculty-reports">View Detailed Report <i class="bi bi-arrow-right"></i></a>
+  </section>
+  <section class="admin-panel">
+    <div class="admin-panel-head"><h2>PLO Attainment by Programme</h2><a class="report-link" href="/dean/programmes">View All</a></div>
+    <div class="dd-trend">
+      {% for item in dean_programmes %}
+      <p>
+        <span title="{{ item.name }}">{{ item.code }}</span>
+        <span class="track">{% if item.value is not none %}<b class="{{ 'dd-green' if item.value >= 70 else 'dd-orange' if item.value >= 60 else 'dd-red' }}" style="width: {{ item.value }}%"></b>{% else %}<b class="dd-grey" style="width:100%"></b>{% endif %}<i style="left:70%"></i></span>
+        <em>{{ item.attainment }}</em>
+      </p>
+      {% else %}
+      <p><span>No programmes</span><span class="track"></span><em>&mdash;</em></p>
+      {% endfor %}
+    </div>
+    <a class="panel-bottom-link" href="/dean/programmes">View Programme Reports <i class="bi bi-arrow-right"></i></a>
+  </section>
+</div>
+
+<div class="dean-grid two mt-3">
+  <section class="admin-panel">
+    <div class="admin-panel-head"><h2>My Programmes</h2><a class="admin-refresh" href="/dean/programmes">Manage Programmes</a></div>
+    <table class="dean-mini-table">
+      <tr><th>#</th><th>Programme</th><th>Coordinator</th><th>Students</th><th>Attainment</th><th>Status</th></tr>
+      {% for item in dean_programmes %}
+      <tr><td>{{ loop.index }}</td><td>{{ item.code }} · {{ item.name }}</td><td>{{ item.coordinator }}</td><td>{{ item.students }}</td><td>{{ item.attainment }}</td><td><span class="data-badge {{ 'green' if item.status == 'On Track' else 'orange' if item.status == 'At Risk' else 'red' if item.status == 'Below Target' else 'blue' }}">{{ item.status }}</span></td></tr>
+      {% endfor %}
+    </table>
+    <a class="panel-bottom-link" href="/dean/programmes">View All Programmes <i class="bi bi-arrow-right"></i></a>
+  </section>
+  <section class="admin-panel">
+    <div class="admin-panel-head"><h2>Score Entry Progress</h2><a class="report-link" href="/dean/assessment-reports">View All</a></div>
+    <table class="dean-mini-table">
+      <tr><th>Measure</th><th>Value</th></tr>
+      <tr><td>Assessments defined</td><td>{{ counts.assessments if counts else 0 }}</td></tr>
+      <tr><td>With marks entered</td><td>{{ counts.assessments_scored if counts else 0 }}</td></tr>
+      <tr><td>Awaiting marks</td><td>{{ counts.assessments_pending if counts else 0 }}</td></tr>
+      <tr><td>Courses</td><td>{{ counts.courses if counts else 0 }}</td></tr>
+      <tr><td>Classes</td><td>{{ counts.classes if counts else 0 }}</td></tr>
+      <tr><td>Students enrolled</td><td>{{ counts.students if counts else 0 }}</td></tr>
+    </table>
+    <a class="panel-bottom-link" href="/dean/assessment-reports">View Assessment Reports <i class="bi bi-arrow-right"></i></a>
+  </section>
+</div>
+
+<section class="admin-panel mt-3">
+  <h2>Quick Actions</h2>
+  <div class="quick-actions dean-actions">
+    <a href="/dean/programmes"><i class="bi bi-plus-circle"></i>Add Programme</a>
+    <a href="/dean/members"><i class="bi bi-people-fill"></i>Manage Faculty Members</a>
+    <a href="/dean/faculty-reports"><i class="bi bi-bar-chart"></i>View Faculty Report</a>
+    <a href="/dean/plo-targets"><i class="bi bi-bullseye"></i>PLO Target Setup</a>
+    <a href="/dean/assessment-reports"><i class="bi bi-clipboard-check"></i>Assessment Oversight</a>
+    <a href="/dean/documents"><i class="bi bi-file-earmark-plus"></i>Upload Document</a>
+  </div>
+</section>
+{% elif user.role.value == "program_manager" %}
+<div class="manager-dashboard-head">
+  <div>
+    <h1>Welcome back, Programme Coordinator <span>👋</span></h1>
+    <p>Here is what is happening with your programme today.</p>
+  </div>
+</div>
+
+<div class="admin-metric-grid five">
+  {% for label, value, icon, tone, small in [
+    ("Total Programmes", "3", "bi-mortarboard-fill", "blue", "Active Programmes"),
+    ("PLOs", "7", "bi-pie-chart-fill", "green", "Total PLOs"),
+    ("Average PLO Performance", "70.0%", "bi-graph-up-arrow", "purple", "All Programmes"),
+    ("Targets Met", "5 / 7", "bi-bullseye", "orange", "This Academic Year"),
+    ("Upcoming Assessments", "8", "bi-calendar2-check", "cyan", "Next 30 Days")
+  ] %}
+  <section class="admin-metric-card"><span class="admin-stat-icon {{ tone }}"><i class="bi {{ icon }}"></i></span><div><em>{{ label }}</em><strong>{{ value }}</strong><small>{{ small }}</small></div></section>
+  {% endfor %}
+</div>
+
+<div class="manager-dashboard-grid">
+  <section class="admin-panel manager-wide">
+    <div class="admin-panel-head"><h2>PLO Performance Overview <i class="bi bi-info-circle"></i></h2><select class="admin-panel-select"><option>This Academic Year</option></select></div>
+    <div class="manager-bars">
+      {% for code, value in [("PLO1",75.2),("PLO2",68.5),("PLO3",72.1),("PLO4",65.8),("PLO5",71.3),("PLO6",58.6),("PLO7",77.9)] %}
+      <div><b style="height: {{ value }}%"><span>{{ value }}%</span></b><small>{{ code }}</small></div>
+      {% endfor %}
+      <i class="manager-target-line"></i>
+    </div>
+    <div class="chart-legend"><span><i class="dash"></i>Target (70%)</span><span><i class="blue"></i>Attainment</span></div>
+  </section>
+  <section class="admin-panel">
+    <div class="admin-panel-head"><h2>Recent Reports</h2><a class="report-link" href="/manager/reports">View All</a></div>
+    <div class="activity-list manager-activity">
+      {% for report in reports[:5] %}
+      <div><i class="bi bi-file-earmark-bar-graph blue"></i><span>{{ report.name }}<small>{{ report.category }} · {{ report.last_generated }}</small></span></div>
+      {% else %}
+      <div><i class="bi bi-info-circle blue"></i><span>No reports yet<small>Create reports from the Reports page.</small></span></div>
+      {% endfor %}
+    </div>
+  </section>
+  <section class="admin-panel">
+    <div class="admin-panel-head"><h2>To Do</h2><a class="report-link">View All</a></div>
+    <div class="todo-list">
+      {% for task, sub, count, tone in [("Review PLO Performance","Spring 2025",3,"red"),("Approve Assessment Results","Spring 2025",4,"orange"),("Update Programme Mapping","CE Programme",2,"blue"),("Set PLO Targets","2024-2025",1,"cyan"),("Upload Supporting Documents","For Accreditation",2,"purple")] %}
+      <p><i class="bi bi-clipboard-check"></i><span>{{ task }}<small>{{ sub }}</small></span><b class="{{ tone }}">{{ count }}</b></p>
+      {% endfor %}
+    </div>
+  </section>
+  <section class="admin-panel">
+    <div class="admin-panel-head"><h2>Upcoming Assessments</h2><a class="report-link" href="/manager/calendar">View Calendar</a></div>
+    <table class="dean-mini-table">
+      {% for name, course, date, type, status in [("CE301 Final Exam","CE301 - Structural Analysis I","May 20, 2025","Summative","Scheduled"),("CE201 Quiz 2","CE201 - Statics","May 18, 2025","Formative","Scheduled"),("CE203 Assignment 1","CE203 - Fluid Mechanics","May 16, 2025","Formative","In Progress"),("CE101 Lab Report","CE101 - Engineering Mathematics I","May 15, 2025","Formative","In Progress"),("CE302 Project Proposal","CE302 - Concrete Technology","May 22, 2025","Formative","Draft")] %}
+      <tr><td>{{ name }}</td><td>{{ course }}</td><td>{{ date }}</td><td>{{ type }}</td><td><span class="data-badge {{ 'green' if status == 'Scheduled' else 'blue' if status == 'In Progress' else 'gray' }}">{{ status }}</span></td></tr>
+      {% endfor %}
+    </table>
+    <a class="panel-bottom-link" href="/manager/course-assessment-setup">View Assessment Mapping <i class="bi bi-arrow-right"></i></a>
+  </section>
+  <section class="admin-panel">
+    <h2>Programme Mapping Status</h2>
+    <div class="donut-with-list"><div class="status-donut multi"><div><strong>85%</strong><span>Overall Mapping</span></div></div><div class="legend-list"><p><i class="green"></i><span>Fully Mapped</span><strong>52 (61%)</strong></p><p><i class="orange"></i><span>Partially Mapped</span><strong>18 (21%)</strong></p><p><i class="red"></i><span>Not Mapped</span><strong>10 (12%)</strong></p><p><i class="gray"></i><span>Not Applicable</span><strong>5 (6%)</strong></p></div></div>
+    <a class="panel-bottom-link" href="/manager/programme-mapping">View Mapping <i class="bi bi-arrow-right"></i></a>
+  </section>
+  <section class="admin-panel">
+    <div class="admin-panel-head"><h2>Announcements</h2><a class="report-link" href="/manager/announcements">View All</a></div>
+    <div class="announcement-list">
+      {% for title, body in [("PLO Workshop","PLO Assessment Workshop on May 22, 2025 at 9:00 AM in Room 101."),("Deadline Reminder","Please submit all assessment results by May 30, 2025."),("System Maintenance","System will be unavailable on May 18, 2025 from 12:00 AM to 4:00 AM.")] %}
+      <p><i class="bi bi-megaphone"></i><strong>{{ title }}</strong><span>{{ body }}</span></p>
+      {% endfor %}
+    </div>
+    <a class="panel-bottom-link" href="/manager/announcements">View All Announcements <i class="bi bi-arrow-right"></i></a>
+  </section>
+</div>
+<section class="admin-panel mt-3">
+  <h2>Quick Links</h2>
+  <div class="quick-actions manager-quick">
+    <a href="/manager/plo-performance"><i class="bi bi-graph-up-arrow"></i>PLO Performance</a>
+    <a href="/manager/programme-mapping"><i class="bi bi-diagram-3"></i>Programme Mapping</a>
+    <a href="/manager/plo-targets"><i class="bi bi-bullseye"></i>PLO Target Setup</a>
+    <a href="/manager/reports"><i class="bi bi-file-earmark-text"></i>Reports</a>
+    <a href="/manager/documents"><i class="bi bi-folder"></i>Documents</a>
+    <a href="/manager/calendar"><i class="bi bi-calendar3"></i>Calendar</a>
+  </div>
+</section>
+{% elif user.role.value == "teacher" %}
+<div class="manager-dashboard-head">
+  <div>
+    <h1>Welcome back, Dr. Heng Rithy <span>👋</span></h1>
+    <p>Here is what is happening with your teaching today.</p>
+  </div>
+  <a class="btn btn-primary" href="/teacher/courses">Open My Courses</a>
+</div>
+<div class="admin-metric-grid">
+  {% for label, value, icon, tone in page.stats %}
+  <section class="admin-metric-card"><span class="admin-stat-icon {{ tone }}"><i class="bi {{ icon }}"></i></span><div><em>{{ label }}</em><strong>{{ value }}</strong><small>Active this semester</small></div></section>
+  {% endfor %}
+</div>
+<section class="admin-panel">
+  <div class="admin-panel-head"><h2>Courses I Teach</h2><a class="report-link" href="/teacher/courses">View All</a></div>
+  <div class="teacher-course-list">
+    {% for course in page.courses %}
+    <article class="teacher-course-card">
+      <div class="teacher-course-main">
+        <span class="teacher-course-icon {{ course.tone }}"><i class="bi {{ course.icon }}"></i></span>
+        <div><h3>{{ course.code }} - {{ course.title }}</h3><p>{{ course.title }} <b>2 Credits</b></p><small><i class="bi bi-people"></i> {{ course.students }} Students <i class="bi bi-person"></i> Dr. Heng Rithy</small></div>
+      </div>
+      <div class="teacher-course-numbers compact"><span><strong>5</strong>Assessments</span><span><strong class="danger">{{ course.pending }}</strong>Pending Scores</span><span><strong>{{ course.submitted }}</strong>Submitted</span><span><strong class="success">{{ course.attainment }}</strong>PLO Attainment</span></div>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% elif user.role.value == "student" %}
+<div class="student-dashboard-head">
+  <div>
+    <h1>Welcome back, {{ user.name }}!</h1>
+    <p>Here is what is happening with your courses and PLO attainment.</p>
+  </div>
+</div>
+<div class="admin-metric-grid six">
+  {% for label, value, icon, tone in student_page.stats %}
+  <section class="admin-metric-card"><span class="admin-stat-icon {{ tone }}"><i class="bi {{ icon }}"></i></span><div><em>{{ label }}</em><strong>{{ value }}</strong><small>{{ "Active courses" if loop.first else "" }}</small></div></section>
+  {% endfor %}
+</div>
+<div class="student-dashboard-grid">
+  <section class="admin-panel student-wide">
+    <h2>PLO Attainment Overview (Average %)</h2>
+    <div class="teacher-colored-bars student-main-bars">{% for code,value,color in student_page.plo_values %}<div><b style="height: {{ value }}%; background: {{ color }}"><span>{{ value }}%</span></b><small>{{ code }}</small></div>{% else %}<div class="text-muted p-4">No PLO score data yet.</div>{% endfor %}<i class="target-line-red"></i><em>Target (70%)</em></div>
+    <div class="chart-legend"><span><i class="green"></i>&ge; 70% (Attained)</span><span><i class="red"></i>&lt; 70% (Not Attained)</span></div>
+  </section>
+  <section class="admin-panel"><div class="admin-panel-head"><h2>Upcoming Events</h2><a href="/student/calendar">View Calendar</a></div>{% for event in student_page.events[:5] %}<p class="event-row"><b>{{ event.date }}</b><span>{{ event.title }}<small>{{ event.course }}</small></span><i class="data-badge blue">{{ event.type }}</i></p>{% else %}<p class="text-muted">No upcoming assessment events.</p>{% endfor %}</section>
+  <section class="admin-panel"><h2>Course Progress</h2>{% for course in student_page.courses[:5] %}<div class="student-progress-row"><span>{{ course.code }} - {{ course.title }}</span><b>{{ course.progress }}%</b><i><em style="width: {{ course.progress }}%"></em></i></div>{% else %}<p class="text-muted">No enrolled courses found.</p>{% endfor %}<a class="panel-bottom-link" href="/student/courses">View All Courses <i class="bi bi-arrow-right"></i></a></section>
+  <section class="admin-panel"><h2>PLO Attainment Distribution</h2><div class="donut-with-list compact"><div class="status-donut teacher-donut"><div><strong>{{ student_page.plo_values|length }}</strong><span>PLOs</span></div></div><div class="legend-list"><p><i class="green"></i><span>&ge; 70% (Attained)</span><strong>{{ student_page.plo_attained }} PLOs</strong></p><p><i class="red"></i><span>&lt; 70%</span><strong>{{ student_page.plo_not_attained }} PLOs</strong></p></div></div><a class="panel-bottom-link" href="/student/plo-overview">View PLO Report <i class="bi bi-arrow-right"></i></a></section>
+  <section class="admin-panel"><div class="admin-panel-head"><h2>Recent Announcements</h2><a href="/student/announcements">View All</a></div>{% for item in student_page.announcements %}<p class="announcement-mini"><i class="bi bi-megaphone"></i><strong>{{ item.title }}</strong><span>{{ item.body }}</span></p>{% endfor %}</section>
+</div>
+<section class="student-note"><i class="bi bi-info-circle-fill"></i><strong>Note:</strong> PLO attainment is calculated based on your assessment scores across all enrolled courses.<span>Target: {{ student_page.target }}%</span></section>
+{% else %}
+<div class="page-heading">
+  <div>
+    <h1>Dashboard</h1>
+    <p>{{ role_labels[user.role] }} workspace</p>
+  </div>
+</div>
+
+<div class="row g-3 mb-4">
+  <div class="col-md-4"><div class="stat"><span>Subjects</span><strong>{{ courses|length }}</strong></div></div>
+  <div class="col-md-4"><div class="stat"><span>Classes</span><strong>{{ classes|length }}</strong></div></div>
+  <div class="col-md-4"><div class="stat"><span>Students</span><strong>{{ students|length }}</strong></div></div>
+</div>
+
+<section class="panel">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="h5 mb-0">Classes / Cohorts</h2>
+    {% if can(user, "manage_program") %}<a class="btn btn-sm btn-primary" href="/setup">Setup OBE Structure</a>{% endif %}
+  </div>
+  <div class="table-responsive">
+    <table class="table align-middle">
+      <thead>
+        <tr>
+          <th>Class / Cohort</th>
+          <th>Subject</th>
+          <th>Academic Year</th>
+          <th>Semester</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for class in classes %}
+        <tr>
+          <td>{{ class.name }}</td>
+          <td>{{ class.course.code }} · {{ class.course.title }}</td>
+          <td>{{ class.academic_year }}</td>
+          <td>{{ class.semester }}</td>
+          <td class="text-end">
+            {% if can(user, "input_marks") %}<a class="btn btn-sm btn-outline-primary" href="/classes/{{ class.id }}/marks">Input Marks</a>{% endif %}
+            {% if can(user, "view_clo_report") or can(user, "view_all_reports") %}<a class="btn btn-sm btn-outline-dark" href="/classes/{{ class.id }}/reports">Reports</a>{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

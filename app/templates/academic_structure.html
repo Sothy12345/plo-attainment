@@ -1,0 +1,289 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="admin-page-title academic-structure-title">
+  <div>
+    <div class="admin-breadcrumb"><a href="/dashboard">Dashboard</a><i class="bi bi-chevron-right"></i><span>Academic Structure</span></div>
+    <h1>Academic Structure</h1>
+    <p>Manage academic years, semesters, and class/cohort codes in one easy workflow.</p>
+  </div>
+  <a class="admin-primary-action" href="#classes"><i class="bi bi-plus-lg"></i>Create Class</a>
+</div>
+
+<div class="academic-flow">
+  <div class="flow-step"><span>1</span><strong>Academic Year</strong><small>Example: 2025–2026</small></div>
+  <i class="bi bi-arrow-right"></i>
+  <div class="flow-step"><span>2</span><strong>Semester</strong><small>Semester 1 / 2</small></div>
+  <i class="bi bi-arrow-right"></i>
+  <div class="flow-step"><span>3</span><strong>Class Code</strong><small>Example: 21ME11Mb1</small></div>
+</div>
+
+<div class="admin-metric-grid">
+  {% for label, value, icon, tone in page.stats %}
+  <section class="admin-metric-card">
+    <span class="admin-stat-icon {{ tone }}"><i class="bi {{ icon }}"></i></span>
+    <div><em>{{ label }}</em><strong>{{ value }}</strong></div>
+  </section>
+  {% endfor %}
+</div>
+
+{% if request.query_params.get("created") %}<div class="admin-info-box success"><i class="bi bi-check-circle"></i><span>Record created successfully.</span></div>{% endif %}
+{% if request.query_params.get("updated") %}<div class="admin-info-box success"><i class="bi bi-check-circle"></i><span>Record updated successfully.</span></div>{% endif %}
+{% if request.query_params.get("deleted") %}<div class="admin-info-box"><i class="bi bi-trash"></i><span>Record removed successfully.</span></div>{% endif %}
+{% if request.query_params.get("error") == 'semester_in_use' %}<div class="admin-info-box danger"><i class="bi bi-exclamation-circle"></i><span>This semester is already used by classes or student enrollments. You may update its dates/status, but cannot change or delete its year/semester identity.</span></div>
+{% elif request.query_params.get("error") == 'semester_exists' %}<div class="admin-info-box danger"><i class="bi bi-exclamation-circle"></i><span>This academic year already has the selected semester, or the semester code already exists.</span></div>
+{% elif request.query_params.get("error") %}<div class="admin-info-box danger"><i class="bi bi-exclamation-circle"></i><span>Please check duplicate data or records already used by students/courses.</span></div>{% endif %}
+
+<section class="admin-table-panel academic-tabs-panel">
+  <div class="academic-tabs" role="tablist">
+    <button class="academic-tab {{ 'active' if active_tab == 'years' else '' }}" data-tab-target="years"><i class="bi bi-calendar3"></i> Academic Years</button>
+    <button class="academic-tab {{ 'active' if active_tab == 'semesters' else '' }}" data-tab-target="semesters"><i class="bi bi-calendar2-week"></i> Semesters</button>
+    <button class="academic-tab {{ 'active' if active_tab == 'classes' else '' }}" data-tab-target="classes"><i class="bi bi-people"></i> Classes / Cohorts</button>
+  </div>
+</section>
+
+<section class="academic-tab-panel {{ 'active' if active_tab == 'years' else '' }}" id="years" data-tab-panel="years">
+  <div class="academic-two-column">
+    <section class="admin-table-panel">
+      <div class="admin-table-head"><div><h2>Add Academic Year</h2><p>Create the academic year first. Example: 2025–2026.</p></div></div>
+      <form method="post" action="/admin/academic-years/create" class="admin-user-form compact-form">
+        <label>Academic Year<input name="name" placeholder="2025-2026" required></label>
+        <label>Start Date<input name="start_date" placeholder="Aug 01, 2025" required></label>
+        <label>End Date<input name="end_date" placeholder="Jul 31, 2026" required></label>
+        <label class="user-check"><input type="checkbox" name="is_active" value="true" checked> Active</label>
+        <label class="user-check"><input type="checkbox" name="is_default" value="true"> Default / Current Year</label>
+        <button class="admin-primary-action inline" type="submit"><i class="bi bi-plus-lg"></i>Add Year</button>
+      </form>
+    </section>
+    <section class="admin-table-panel">
+      <div class="admin-table-head"><div><h2>Academic Year List</h2><p>Only one year should be marked as default/current.</p></div><label class="admin-search"><input data-table-search="years-table" placeholder="Search year..."><i class="bi bi-search"></i></label></div>
+      <div class="admin-table-wrap"><table class="admin-data-table" id="years-table"><thead><tr><th>No.</th><th>Year</th><th>Start</th><th>End</th><th>Status</th><th>Default</th><th>Action</th></tr></thead><tbody>
+        {% for record in page.academic_year_records %}<tr><td>{{ loop.index }}</td><td><strong>{{ record.name }}</strong></td><td>{{ record.start_date }}</td><td>{{ record.end_date }}</td><td><span class="status-pill {{ 'active' if record.is_active else 'inactive' }}"><i></i>{{ 'Active' if record.is_active else 'Inactive' }}</span></td><td>{{ '★' if record.is_default else '☆' }}</td><td><span class="row-actions"><a href="/admin/academic-years?edit_id={{ record.id }}#edit-record" title="Edit"><i class="bi bi-pencil"></i></a><form method="post" action="/admin/academic-years/{{ record.id }}/delete" onsubmit="return confirm('Remove this academic year?');"><button class="delete-icon" type="submit"><i class="bi bi-trash"></i></button></form></span></td></tr>{% else %}<tr><td colspan="7">No academic year yet.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </section>
+  </div>
+</section>
+
+<section class="academic-tab-panel {{ 'active' if active_tab == 'semesters' else '' }}" id="semesters" data-tab-panel="semesters">
+  {% set edit_semester_id = request.query_params.get('edit_semester_id') %}
+  {% set semester_editor = namespace(record=none) %}
+  {% for record in page.semester_records %}{% if edit_semester_id and record.id|string == edit_semester_id %}{% set semester_editor.record = record %}{% endif %}{% endfor %}
+  <div class="admin-info-box" style="margin-bottom:16px"><i class="bi bi-info-circle"></i><span><strong>Global Study Period source:</strong> every active semester below automatically appears in the sidebar selector. The default semester becomes the current Study Period for users without a saved selection.</span></div>
+  <div class="academic-two-column">
+    <section class="admin-table-panel">
+      <div class="admin-table-head"><div><h2>{{ 'Edit Semester' if semester_editor.record else 'Add Semester' }}</h2><p>{{ 'Update the semester and global Study Period data.' if semester_editor.record else 'Create Semester 1 and Semester 2 under an academic year.' }}</p></div></div>
+      <form method="post" action="{{ '/admin/semesters/' ~ semester_editor.record.id ~ '/update' if semester_editor.record else '/admin/semesters/create' }}" class="admin-user-form compact-form" data-semester-form>
+        <label>Academic Year<select name="academic_year" data-semester-year required>{% for year in page.academic_years %}<option value="{{ year.name }}" {{ 'selected' if semester_editor.record and semester_editor.record.academic_year == year.name else '' }}>{{ year.name }}</option>{% endfor %}</select></label>
+        <label>Semester<select name="name" data-semester-name required><option value="Semester 1" {{ 'selected' if semester_editor.record and semester_editor.record.name == 'Semester 1' else '' }}>Semester 1</option><option value="Semester 2" {{ 'selected' if semester_editor.record and semester_editor.record.name == 'Semester 2' else '' }}>Semester 2</option></select></label>
+        <label>Semester Code<input name="code" data-semester-code value="{{ semester_editor.record.code if semester_editor.record else '' }}" placeholder="2025-2026-S1" required {% if semester_editor.record %}data-auto="manual"{% endif %}></label>
+        <label>Start Date<input name="start_date" value="{{ semester_editor.record.start_date if semester_editor.record else '' }}" placeholder="Aug 01, 2025" required></label>
+        <label>End Date<input name="end_date" value="{{ semester_editor.record.end_date if semester_editor.record else '' }}" placeholder="Dec 31, 2025" required></label>
+        <label class="user-check"><input type="checkbox" name="is_active" value="true" {{ 'checked' if not semester_editor.record or semester_editor.record.is_active else '' }}> Active / show in Study Period</label>
+        <label class="user-check"><input type="checkbox" name="is_default" value="true" {{ 'checked' if semester_editor.record and semester_editor.record.is_default else '' }}> Default / current Study Period</label>
+        <div style="display:flex;gap:8px;align-items:center"><button class="admin-primary-action inline" type="submit"><i class="bi {{ 'bi-floppy' if semester_editor.record else 'bi-plus-lg' }}"></i>{{ 'Update Semester' if semester_editor.record else 'Add Semester' }}</button>{% if semester_editor.record %}<a class="admin-secondary-action" href="/admin/cohorts#semesters" style="display:inline-flex;align-items:center;text-decoration:none">Cancel</a>{% endif %}</div>
+      </form>
+    </section>
+    <section class="admin-table-panel">
+      <div class="admin-table-head"><div><h2>Semester / Study Period List</h2><p>This is the single data source for enrollment, reports, promotion, and the sidebar Study Period.</p></div><label class="admin-search"><input data-table-search="semesters-table" placeholder="Search semester..."><i class="bi bi-search"></i></label></div>
+      <div class="admin-table-wrap"><table class="admin-data-table" id="semesters-table"><thead><tr><th>No.</th><th>Semester</th><th>Code</th><th>Academic Year</th><th>Status</th><th>Study Period</th><th>Action</th></tr></thead><tbody>
+        {% for record in page.semester_records %}<tr><td>{{ loop.index }}</td><td><strong>{{ record.name }}</strong></td><td><span class="data-badge blue">{{ record.code }}</span></td><td>{{ record.academic_year }}</td><td><span class="status-pill {{ 'active' if record.is_active else 'inactive' }}"><i></i>{{ 'Active' if record.is_active else 'Inactive' }}</span></td><td>{% if record.is_active and record.is_default %}<span class="data-badge green"><i class="bi bi-star-fill"></i> Current</span>{% elif record.is_active %}<span class="data-badge blue">Available</span>{% else %}<span class="data-badge gray">Hidden</span>{% endif %}</td><td><span class="row-actions"><a href="/admin/cohorts?edit_semester_id={{ record.id }}#semesters" title="Edit semester"><i class="bi bi-pencil"></i></a><form method="post" action="/admin/semesters/{{ record.id }}/delete" onsubmit="return confirm('Remove this semester from Academic Structure and Study Period?');"><button class="delete-icon" type="submit"><i class="bi bi-trash"></i></button></form></span></td></tr>{% else %}<tr><td colspan="7">No semester yet.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </section>
+  </div>
+</section>
+
+<section class="academic-tab-panel {{ 'active' if active_tab == 'classes' else '' }}" id="classes" data-tab-panel="classes">
+  <div class="class-code-explainer">
+    <div>
+      <strong>Class Code Pattern</strong>
+      <p><code>21ME11Mb1</code> = Generation 21 + Programme ME + Year 1 Semester 1 + Morning + Bachelor + Group 1</p>
+    </div>
+    <div class="code-parts"><span>21</span><span>ME</span><span>11</span><span>M</span><span>b</span><span>1</span></div>
+  </div>
+
+  <div class="academic-two-column classes-layout">
+    <section class="admin-table-panel">
+      <div class="admin-table-head">
+        <div>
+          <h2>Create Full Class Batch</h2>
+          <p>Input the first class code only. The system will automatically create Year 1 Semester 1 to Year 4 Semester 2.</p>
+        </div>
+      </div>
+      <form method="post" action="/admin/cohorts/create" class="admin-user-form compact-form class-builder-form" data-cohort-builder>
+        <label class="wide-field">First Class Code<input name="name" data-full-class-code placeholder="21ME11Mb1" value="21ME11Mb1" required></label>
+        <label>Programme
+          <select name="program_id" data-programme-select required>
+            {% for program in page.programs %}<option value="{{ program.id }}" data-code="{{ program.code }}">{{ program.code }} · {{ program.name }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>Start Academic Year<select name="academic_year" required>{% for year in page.academic_years %}<option value="{{ year.name }}" {{ 'selected' if year.is_default else '' }}>{{ year.name }}</option>{% endfor %}</select></label>
+        <input type="hidden" name="create_full_programme" value="1">
+        <div class="class-live-preview wide-field"><span>Auto-created class codes</span><strong data-code-preview>21ME11Mb1 → 21ME42Mb1</strong><small>The system creates 8 class/cohort records: Y1S1, Y1S2, Y2S1, Y2S2, Y3S1, Y3S2, Y4S1, Y4S2.</small></div>
+        <div class="admin-info-box wide-field"><i class="bi bi-info-circle"></i><span>This page manages class/cohort codes only. Subjects/courses are hidden here and connected internally for enrollment and promotion.</span></div>
+        <button class="admin-primary-action inline" type="submit"><i class="bi bi-plus-lg"></i>Create 8 Semesters</button>
+      </form>
+    </section>
+
+    <section class="admin-table-panel">
+      <div class="admin-table-head class-list-head">
+        <div><h2>Class / Cohort List</h2><p>Filter by programme and generation. Subjects are not shown on this page.</p></div>
+      </div>
+
+      <div class="class-filter-bar" data-class-filter-bar>
+        <label>Programme
+          <select data-class-program-filter>
+            <option value="">All programmes</option>
+            {% for program in page.programs %}<option value="{{ program.code }}">{{ program.code }} · {{ program.name }}</option>{% endfor %}
+          </select>
+        </label>
+        <label>Generation
+          <select data-class-generation-filter>
+            <option value="">All generations</option>
+          </select>
+        </label>
+        <label class="class-search-label">Search
+          <div class="admin-search embedded"><input data-class-search placeholder="Search class code..."><i class="bi bi-search"></i></div>
+        </label>
+        <button type="button" class="admin-secondary-action" data-clear-class-filters><i class="bi bi-x-circle"></i>Clear</button>
+      </div>
+      <div class="filter-result-note"><strong data-filter-count>{{ page.cohort_group_records|length }}</strong> classes shown</div>
+
+      <div class="admin-table-wrap"><table class="admin-data-table" id="classes-table"><thead><tr><th>No.</th><th>Class Code</th><th>Generation</th><th>Programme</th><th>Academic Year</th><th>Year/Semester</th><th>Students</th><th>Status</th><th>Action</th></tr></thead><tbody>
+        {% for record in page.cohort_group_records %}
+        {% set generation = record.code[:2] if record.code|length >= 2 else '' %}
+        <tr data-class-row data-programme="{{ record.programme_code }}" data-generation="{{ generation }}">
+          <td data-row-number>{{ loop.index }}</td>
+          <td><span class="data-badge {{ 'blue' if record.code_complete else 'warning' }}">{{ record.code }}</span></td>
+          <td><span class="data-badge blue">{{ generation if generation else '-' }}</span></td>
+          <td>{{ record.programme }}</td>
+          <td>{{ record.academic_year }}</td>
+          <td>Y{{ record.code[-5] if record.code|length >= 8 else '-' }} / {{ record.semester_label }}</td>
+          <td>{{ record.students }}</td>
+          <td>{% if record.code_complete %}<span class="status-pill active"><i></i>Ready</span>{% else %}<span class="status-pill inactive"><i></i>Need full code</span>{% endif %}</td>
+          <td><span class="row-actions"><button type="button" class="link-icon" data-edit-class data-code="{{ record.code }}" data-year="{{ record.academic_year }}" data-semester="{{ record.semester }}"><i class="bi bi-pencil"></i></button><form method="post" action="/admin/cohorts/group/delete" onsubmit="return confirm('Remove this class/cohort?');"><input type="hidden" name="code" value="{{ record.code }}"><input type="hidden" name="academic_year" value="{{ record.academic_year }}"><input type="hidden" name="semester" value="{{ record.semester }}"><button class="delete-icon" type="submit"><i class="bi bi-trash"></i></button></form></span></td>
+        </tr>
+        {% else %}<tr><td colspan="9">No class/cohort yet.</td></tr>{% endfor %}
+      </tbody></table></div>
+    </section>
+  </div>
+</section>
+
+<div class="class-edit-modal" data-class-edit-modal hidden>
+  <form method="post" action="/admin/cohorts/group/update" class="class-edit-card">
+    <div class="admin-table-head"><div><h2>Edit Class / Cohort</h2><p>Edit the selected class code only. Courses remain connected internally.</p></div><button type="button" class="modal-close" data-close-class-edit>×</button></div>
+    <input type="hidden" name="old_code" data-edit-old-code>
+    <input type="hidden" name="old_academic_year" data-edit-old-year>
+    <input type="hidden" name="old_semester" data-edit-old-semester>
+    <label>Class Code<input name="name" data-edit-name required></label>
+    <label>Academic Year<select name="academic_year" data-edit-year required>{% for year in page.academic_years %}<option value="{{ year.name }}">{{ year.name }}</option>{% endfor %}</select></label>
+    <label>Semester<select name="semester_no" data-edit-semester><option value="1">Semester 1</option><option value="2">Semester 2</option></select></label>
+    <button class="admin-primary-action inline" type="submit"><i class="bi bi-check2-circle"></i>Save Changes</button>
+  </form>
+</div>
+
+<style>
+.academic-flow{display:flex;align-items:center;gap:14px;margin:0 0 18px}.flow-step{flex:1;background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:14px;display:flex;align-items:center;gap:12px}.flow-step span{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#0b5ed7;color:#fff;font-weight:800}.flow-step strong{display:block;color:#0b1f52}.flow-step small{display:block;color:#64748b}.academic-flow>i{color:#94a3b8}.academic-tabs-panel{padding:10px;margin-bottom:16px}.academic-tabs{display:flex;gap:8px;flex-wrap:wrap}.academic-tab{border:0;background:#f1f5f9;border-radius:12px;padding:12px 16px;font-weight:800;color:#334155;cursor:pointer}.academic-tab.active{background:#0b5ed7;color:#fff}.academic-tab-panel{display:none}.academic-tab-panel.active{display:block}.academic-two-column{display:grid;grid-template-columns:420px minmax(0,1fr);gap:18px;align-items:start}.classes-layout{grid-template-columns:460px minmax(0,1fr)}.compact-form{grid-template-columns:1fr}.class-builder-form{grid-template-columns:repeat(2,minmax(150px,1fr))}.class-builder-form .wide-field{grid-column:1/-1}.class-code-explainer{display:flex;justify-content:space-between;gap:16px;align-items:center;background:#fff;border:1px solid #e5e7eb;border-radius:16px;padding:16px;margin-bottom:16px}.class-code-explainer p{margin:4px 0 0;color:#475569}.class-code-explainer code{font-weight:900;color:#0b5ed7}.code-parts{display:flex;gap:6px}.course-mini-list{margin-top:8px;display:grid;gap:4px;color:#475569}.data-badge.warning{background:#fff7ed;border:1px solid #fed7aa;color:#ea580c}.code-parts span{background:#eef4ff;border:1px solid #bfdbfe;color:#0b5ed7;padding:8px 10px;border-radius:10px;font-weight:900}.class-live-preview{background:#f8fafc;border:1px dashed #94a3b8;border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:3px}.class-live-preview strong{font-size:32px;color:#0b5ed7;letter-spacing:.04em}.class-live-preview span,.class-live-preview small{color:#64748b}@media(max-width:1100px){.academic-two-column,.classes-layout{grid-template-columns:1fr}.academic-flow{flex-direction:column;align-items:stretch}.academic-flow>i{transform:rotate(90deg);align-self:center}.class-code-explainer{flex-direction:column;align-items:flex-start}}.class-filter-bar{display:grid;grid-template-columns:1fr 180px 1fr auto;gap:12px;align-items:end;background:#f8fafc;border:1px solid #e2e8f0;border-radius:14px;padding:12px;margin:12px 0 10px}.class-filter-bar label{display:grid;gap:6px;font-weight:800;color:#0b1f52}.class-filter-bar select,.class-filter-bar input{height:44px;border:1px solid #dbe3ef;border-radius:10px;padding:0 12px;background:#fff}.admin-search.embedded{display:flex;align-items:center;background:#fff;border:1px solid #dbe3ef;border-radius:10px;overflow:hidden}.admin-search.embedded input{border:0;flex:1}.admin-search.embedded i{padding:0 12px;color:#64748b}.admin-secondary-action{height:44px;border:1px solid #dbe3ef;background:#fff;border-radius:10px;padding:0 14px;font-weight:800;color:#334155;cursor:pointer}.filter-result-note{margin:0 0 10px;color:#475569}.filter-result-note strong{color:#0b5ed7}.class-list-head{margin-bottom:0}@media(max-width:900px){.class-filter-bar{grid-template-columns:1fr}.admin-secondary-action{width:100%}}@media(max-width:720px){.class-builder-form{grid-template-columns:1fr}.academic-tab{width:100%;text-align:left}}
+.link-icon{border:0;background:transparent;color:#0b5ed7;cursor:pointer;font-size:18px}.class-edit-modal{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:1000;display:grid;place-items:center;padding:20px}.class-edit-card{background:#fff;border-radius:18px;padding:20px;max-width:520px;width:100%;box-shadow:0 24px 70px rgba(15,23,42,.25);display:grid;gap:12px}.modal-close{border:0;background:#f1f5f9;border-radius:10px;width:36px;height:36px;font-size:24px;cursor:pointer}
+</style>
+
+<script>
+(function(){
+  function setTab(name){
+    document.querySelectorAll('[data-tab-target]').forEach(btn=>btn.classList.toggle('active', btn.dataset.tabTarget===name));
+    document.querySelectorAll('[data-tab-panel]').forEach(panel=>panel.classList.toggle('active', panel.dataset.tabPanel===name));
+    if(location.hash !== '#'+name) history.replaceState(null,'','#'+name);
+  }
+  document.querySelectorAll('[data-tab-target]').forEach(btn=>btn.addEventListener('click',()=>setTab(btn.dataset.tabTarget)));
+  if(location.hash){ const h=location.hash.replace('#',''); if(['years','semesters','classes'].includes(h)) setTab(h); }
+  document.querySelectorAll('[data-table-search]').forEach(input=>input.addEventListener('input',()=>{
+    const table=document.getElementById(input.dataset.tableSearch); const q=input.value.toLowerCase();
+    if(!table) return; table.querySelectorAll('tbody tr').forEach(tr=>tr.style.display=tr.innerText.toLowerCase().includes(q)?'':'none');
+  }));
+  function updateSemesterCode(form){
+    const year=form.querySelector('[data-semester-year]')?.value || '';
+    const name=form.querySelector('[data-semester-name]')?.value || 'Semester 1';
+    const code=form.querySelector('[data-semester-code]');
+    const suffix=name.includes('2')?'S2':'S1';
+    if(code && (!code.value || code.dataset.auto !== 'manual')) code.value=year+'-'+suffix;
+  }
+  document.querySelectorAll('[data-semester-form]').forEach(form=>{
+    const code=form.querySelector('[data-semester-code]');
+    if(code) code.addEventListener('input',()=>code.dataset.auto='manual');
+    form.addEventListener('change',()=>updateSemesterCode(form)); updateSemesterCode(form);
+  });
+  function updateBuilder(form){
+    const codeInput=form.querySelector('[data-full-class-code]');
+    const preview=form.querySelector('[data-code-preview]');
+    const code=(codeInput?.value||'').replace(/\s/g,'');
+    if(code.length>=8){
+      const prefix=code.slice(0,-5); const tail=code.slice(-5);
+      const last=prefix+'42'+tail.slice(2);
+      if(preview) preview.textContent=code+' → '+last;
+      const select=form.querySelector('[data-programme-select]');
+      if(select){
+        const programme=code.slice(2,-5).toUpperCase();
+        Array.from(select.options).forEach(opt=>{ if(opt.dataset.code && opt.dataset.code.toUpperCase()===programme) opt.selected=true; });
+      }
+    }else if(preview){ preview.textContent='Please input full code, e.g. 21ME11Mb1'; }
+  }
+  document.querySelectorAll('[data-cohort-builder]').forEach(form=>{ form.addEventListener('input',()=>updateBuilder(form)); form.addEventListener('change',()=>updateBuilder(form)); updateBuilder(form); });
+
+  function setupClassFilters(){
+    const rows=Array.from(document.querySelectorAll('[data-class-row]'));
+    const programFilter=document.querySelector('[data-class-program-filter]');
+    const generationFilter=document.querySelector('[data-class-generation-filter]');
+    const searchInput=document.querySelector('[data-class-search]');
+    const clearBtn=document.querySelector('[data-clear-class-filters]');
+    const countEl=document.querySelector('[data-filter-count]');
+    if(!rows.length || !programFilter || !generationFilter) return;
+
+    const generations=[...new Set(rows.map(row=>row.dataset.generation).filter(Boolean))].sort();
+    generations.forEach(gen=>{
+      const option=document.createElement('option');
+      option.value=gen;
+      option.textContent='Generation '+gen;
+      generationFilter.appendChild(option);
+    });
+
+    function applyFilters(){
+      const program=(programFilter.value||'').toLowerCase();
+      const generation=(generationFilter.value||'').toLowerCase();
+      const query=(searchInput?.value||'').toLowerCase().trim();
+      let visible=0;
+      rows.forEach(row=>{
+        const rowProgram=(row.dataset.programme||'').toLowerCase();
+        const rowGeneration=(row.dataset.generation||'').toLowerCase();
+        const text=row.innerText.toLowerCase();
+        const show=(!program || rowProgram===program) && (!generation || rowGeneration===generation) && (!query || text.includes(query));
+        row.style.display=show?'':'none';
+        if(show){
+          visible++;
+          const num=row.querySelector('[data-row-number]');
+          if(num) num.textContent=visible;
+        }
+      });
+      if(countEl) countEl.textContent=visible;
+    }
+
+    [programFilter,generationFilter,searchInput].forEach(el=>el && el.addEventListener('input',applyFilters));
+    [programFilter,generationFilter].forEach(el=>el && el.addEventListener('change',applyFilters));
+    if(clearBtn) clearBtn.addEventListener('click',()=>{
+      programFilter.value=''; generationFilter.value=''; if(searchInput) searchInput.value=''; applyFilters();
+    });
+    applyFilters();
+  }
+  setupClassFilters();
+
+  document.querySelectorAll('[data-edit-class]').forEach(btn=>btn.addEventListener('click',()=>{
+    const modal=document.querySelector('[data-class-edit-modal]'); if(!modal) return;
+    modal.hidden=false;
+    modal.querySelector('[data-edit-old-code]').value=btn.dataset.code;
+    modal.querySelector('[data-edit-old-year]').value=btn.dataset.year;
+    modal.querySelector('[data-edit-old-semester]').value=btn.dataset.semester;
+    modal.querySelector('[data-edit-name]').value=btn.dataset.code;
+    modal.querySelector('[data-edit-year]').value=btn.dataset.year;
+    modal.querySelector('[data-edit-semester]').value=btn.dataset.semester;
+  }));
+  document.querySelectorAll('[data-close-class-edit]').forEach(btn=>btn.addEventListener('click',()=>{ const modal=document.querySelector('[data-class-edit-modal]'); if(modal) modal.hidden=true; }));
+})();
+</script>
+{% endblock %}

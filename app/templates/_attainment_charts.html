@@ -1,0 +1,136 @@
+{#
+  Inline SVG charts for the Dean attainment pages.
+
+  Everything is plain SVG with a viewBox, so the charts scale with their
+  container on desktop and mobile without any charting library.
+#}
+
+{% macro bar_chart(entries, key, average, target, unit) %}
+{% set count = entries|length %}
+{% set slot = 100 / (count if count else 1) %}
+<div class="ac-chart">
+  <svg viewBox="0 0 100 62" preserveAspectRatio="none" role="img" aria-label="{{ unit }} attainment by programme">
+    {# Gridlines every 25% of the 0-100 scale, drawn in a 0-50 tall plot area. #}
+    {% for line in [0, 25, 50, 75, 100] %}
+    <line x1="0" y1="{{ 50 - line * 0.5 }}" x2="100" y2="{{ 50 - line * 0.5 }}" stroke="#e7edf5" stroke-width="0.25" vector-effect="non-scaling-stroke"/>
+    {% endfor %}
+    {% for entry in entries %}
+    {% set value = entry[key].overall %}
+    {% set x = loop.index0 * slot %}
+    {% if value is not none %}
+    <rect x="{{ x + slot * 0.22 }}" y="{{ 50 - value * 0.5 }}" width="{{ slot * 0.56 }}" height="{{ value * 0.5 }}" fill="{{ entry.colour }}" rx="0.6"/>
+    {% else %}
+    <rect x="{{ x + slot * 0.22 }}" y="49.4" width="{{ slot * 0.56 }}" height="0.6" fill="#cbd5e1" rx="0.3"/>
+    {% endif %}
+    {% endfor %}
+    {% if target %}
+    <line x1="0" y1="{{ 50 - target * 0.5 }}" x2="100" y2="{{ 50 - target * 0.5 }}" stroke="#dc2626" stroke-width="0.4" stroke-dasharray="1.6 1.2" vector-effect="non-scaling-stroke"/>
+    {% endif %}
+    {% if average is not none %}
+    <line x1="0" y1="{{ 50 - average * 0.5 }}" x2="100" y2="{{ 50 - average * 0.5 }}" stroke="#0b2355" stroke-width="0.4" stroke-dasharray="0.8 0.8" vector-effect="non-scaling-stroke"/>
+    {% endif %}
+    <line x1="0" y1="50" x2="100" y2="50" stroke="#94a3b8" stroke-width="0.3" vector-effect="non-scaling-stroke"/>
+  </svg>
+  <div class="ac-xaxis" style="grid-template-columns: repeat({{ count if count else 1 }}, minmax(0, 1fr))">
+    {% for entry in entries %}
+    <span title="{{ entry.name }}"><b style="background: {{ entry.colour }}"></b>{{ entry.code }}<em>{% if entry[key].overall is not none %}{{ entry[key].overall }}%{% else %}n/a{% endif %}</em></span>
+    {% endfor %}
+  </div>
+</div>
+<div class="ac-legend">
+  <span><i class="ac-line target"></i>Target {{ target }}%</span>
+  {% if average is not none %}<span><i class="ac-line avg"></i>Faculty average {{ average }}%</span>{% endif %}
+  <span><i class="ac-line none"></i>No data</span>
+</div>
+{% endmacro %}
+
+
+{% macro radar_chart(codes, series, averages, target) %}
+{# Axis k is placed at angle 2*pi*k/n starting from the top, radius 40 in a 100x100 box. #}
+{% set n = codes|length %}
+{% if n < 3 %}
+<p class="ac-empty">A radar chart needs at least three outcomes; this selection has {{ n }}.</p>
+{% else %}
+<div class="ac-chart radar">
+  <svg viewBox="-4 -4 108 108" role="img" aria-label="Attainment across outcomes">
+    {% for ring in [25, 50, 75, 100] %}
+    <polygon points="{% for code in codes %}{{ 50 + (ring * 0.4) * radar_sin(loop.index0, n) }},{{ 50 - (ring * 0.4) * radar_cos(loop.index0, n) }} {% endfor %}"
+             fill="none" stroke="#e7edf5" stroke-width="0.5"/>
+    {% endfor %}
+    {% for code in codes %}
+    <line x1="50" y1="50" x2="{{ 50 + 40 * radar_sin(loop.index0, n) }}" y2="{{ 50 - 40 * radar_cos(loop.index0, n) }}" stroke="#e2e8f0" stroke-width="0.4"/>
+    {% endfor %}
+    {% if target %}
+    <polygon points="{% for code in codes %}{{ 50 + (target * 0.4) * radar_sin(loop.index0, n) }},{{ 50 - (target * 0.4) * radar_cos(loop.index0, n) }} {% endfor %}"
+             fill="none" stroke="#dc2626" stroke-width="0.6" stroke-dasharray="2 1.5"/>
+    {% endif %}
+    {% for item in series if item.has_data %}
+    <polygon points="{% for value in item.points %}{{ 50 + ((value or 0) * 0.4) * radar_sin(loop.index0, n) }},{{ 50 - ((value or 0) * 0.4) * radar_cos(loop.index0, n) }} {% endfor %}"
+             fill="{{ item.colour }}" fill-opacity="0.12" stroke="{{ item.colour }}" stroke-width="0.9"/>
+    {% endfor %}
+    {% if averages and averages|select('ne', none)|list %}
+    <polygon points="{% for value in averages %}{{ 50 + ((value or 0) * 0.4) * radar_sin(loop.index0, n) }},{{ 50 - ((value or 0) * 0.4) * radar_cos(loop.index0, n) }} {% endfor %}"
+             fill="none" stroke="#0b2355" stroke-width="0.8" stroke-dasharray="1.5 1.2"/>
+    {% endif %}
+    {% for code in codes %}
+    <text x="{{ 50 + 47 * radar_sin(loop.index0, n) }}" y="{{ 50 - 47 * radar_cos(loop.index0, n) }}"
+          text-anchor="middle" dominant-baseline="middle" font-size="3.6" fill="#40536f" font-weight="700">{{ code }}</text>
+    {% endfor %}
+  </svg>
+</div>
+<div class="ac-legend">
+  {% for item in series %}
+  <span title="{{ item.name }}" class="{{ '' if item.has_data else 'muted' }}"><i class="ac-dot" style="background: {{ item.colour if item.has_data else '#cbd5e1' }}"></i>{{ item.label }}{% if not item.has_data %} (no data){% endif %}</span>
+  {% endfor %}
+  <span><i class="ac-line avg"></i>Faculty average</span>
+  <span><i class="ac-line target"></i>Target {{ target }}%</span>
+</div>
+{% endif %}
+{% endmacro %}
+
+
+{% macro radar_single(codes, item, averages, target) %}
+{# One programme's own radar, on the same axes as every other card so the
+   shapes can be compared side by side. #}
+{% set n = codes|length %}
+{% if n < 3 %}
+<p class="ac-empty">A radar chart needs at least three outcomes; this faculty has {{ n }}.</p>
+{% else %}
+<div class="ac-chart radar">
+  <svg viewBox="-4 -4 108 108" role="img" aria-label="{{ item.label }} attainment across outcomes">
+    {% for ring in [25, 50, 75, 100] %}
+    <polygon points="{% for code in codes %}{{ 50 + (ring * 0.4) * radar_sin(loop.index0, n) }},{{ 50 - (ring * 0.4) * radar_cos(loop.index0, n) }} {% endfor %}"
+             fill="none" stroke="#eef2f8" stroke-width="0.5"/>
+    {% endfor %}
+    {% for code in codes %}
+    <line x1="50" y1="50" x2="{{ 50 + 40 * radar_sin(loop.index0, n) }}" y2="{{ 50 - 40 * radar_cos(loop.index0, n) }}" stroke="#e8edf4" stroke-width="0.4"/>
+    {% endfor %}
+    {% if averages and averages|select('ne', none)|list %}
+    <polygon points="{% for value in averages %}{{ 50 + ((value or 0) * 0.4) * radar_sin(loop.index0, n) }},{{ 50 - ((value or 0) * 0.4) * radar_cos(loop.index0, n) }} {% endfor %}"
+             fill="none" stroke="#0b2355" stroke-width="0.7" stroke-dasharray="1.5 1.2"/>
+    {% endif %}
+    {# The target ring follows each outcome's own configured target, so changing
+       one PLO/PEO target reshapes the ring on that axis only. #}
+    {% set ring = item.targets if item.targets else none %}
+    {% if ring %}
+    <polygon points="{% for value in ring %}{{ 50 + ((value if value is not none else target) * 0.4) * radar_sin(loop.index0, n) }},{{ 50 - ((value if value is not none else target) * 0.4) * radar_cos(loop.index0, n) }} {% endfor %}"
+             fill="none" stroke="#dc2626" stroke-width="0.6" stroke-dasharray="2 1.5"/>
+    {% elif target %}
+    <polygon points="{% for code in codes %}{{ 50 + (target * 0.4) * radar_sin(loop.index0, n) }},{{ 50 - (target * 0.4) * radar_cos(loop.index0, n) }} {% endfor %}"
+             fill="none" stroke="#dc2626" stroke-width="0.6" stroke-dasharray="2 1.5"/>
+    {% endif %}
+    {# Unmeasured outcomes plot at 0, so a programme with no scores collapses to
+       the centre. The card header says so, to keep 0 distinct from a real zero. #}
+    <polygon points="{% for value in item.points %}{{ 50 + ((value or 0) * 0.4) * radar_sin(loop.index0, n) }},{{ 50 - ((value or 0) * 0.4) * radar_cos(loop.index0, n) }} {% endfor %}"
+             fill="{{ item.colour }}" fill-opacity="0.16" stroke="{{ item.colour }}" stroke-width="1.1"/>
+    {% for value in item.points %}
+    <circle cx="{{ 50 + ((value or 0) * 0.4) * radar_sin(loop.index0, n) }}" cy="{{ 50 - ((value or 0) * 0.4) * radar_cos(loop.index0, n) }}" r="1.1" fill="{{ item.colour }}"/>
+    {% endfor %}
+    {% for code in codes %}
+    <text x="{{ 50 + 47 * radar_sin(loop.index0, n) }}" y="{{ 50 - 47 * radar_cos(loop.index0, n) }}"
+          text-anchor="middle" dominant-baseline="middle" font-size="3.4" fill="#40536f" font-weight="700">{{ code }}</text>
+    {% endfor %}
+  </svg>
+</div>
+{% endif %}
+{% endmacro %}

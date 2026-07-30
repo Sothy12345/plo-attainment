@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-heading">
+  <div>
+    <h1>Input Marks</h1>
+    <p>{{ class.course.title }} · {{ class.name }}</p>
+  </div>
+  <a class="btn btn-outline-dark" href="/classes/{{ class.id }}/reports">View Reports</a>
+</div>
+
+<section class="sheet-report mb-4">
+  <div class="sheet-title">Course Information</div>
+  <div class="table-responsive">
+    <table class="table table-bordered sheet-table course-info-table mb-0">
+      <tbody>
+        <tr>
+          <th>Course Title:</th>
+          <td colspan="9">{{ class.course.title }}</td>
+        </tr>
+        <tr>
+          <th>Course Code:</th>
+          <td colspan="7">{{ class.course.code }}</td>
+          <th>No. Credits:</th>
+          <td>{{ class.course.credits }}</td>
+        </tr>
+        <tr>
+          <th>Instructors:</th>
+          <td colspan="7">
+            {% for assignment in class.teachers %}
+              {{ assignment.teacher.user.name }}{% if not loop.last %}, {% endif %}
+            {% else %}
+              -
+            {% endfor %}
+          </td>
+          <th>Semester:</th>
+          <td>{{ class.semester }}</td>
+        </tr>
+        <tr>
+          <th>Email:</th>
+          <td colspan="7">
+            {% for assignment in class.teachers %}
+              {{ assignment.teacher.user.email }}{% if not loop.last %}, {% endif %}
+            {% else %}
+              -
+            {% endfor %}
+          </td>
+          <th>Phone Number:</th>
+          <td>-</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="sheet-title sheet-subtitle">Assessment Detail</div>
+  <div class="table-responsive">
+    <table class="table table-bordered sheet-table assessment-detail-table mb-0">
+      <thead>
+        <tr>
+          <th rowspan="2">CLOs</th>
+          <th rowspan="2">Detail Course Learning Outcomes</th>
+          <th colspan="{{ plos|length }}">PLO Mapping - Weight (%)</th>
+          <th rowspan="2">Assessment</th>
+          <th rowspan="2">Weight (%)</th>
+        </tr>
+        <tr>
+          {% for plo in plos %}
+          <th>{{ plo.code }}</th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for clo in clos %}
+        <tr>
+          <td>{{ clo.code }} ({{ clo.domain }})</td>
+          <td>{{ clo.description or "None" }}</td>
+          {% for plo in plos %}
+            {% set mapping = namespace(weight="") %}
+            {% for item in clo.mappings %}
+              {% if item.plo_id == plo.id %}
+                {% set mapping.weight = "%.0f%%"|format(item.weight * 100) %}
+              {% endif %}
+            {% endfor %}
+          <td class="text-center">{{ mapping.weight }}</td>
+          {% endfor %}
+          <td>
+            {% for assessment in clo.assessments %}
+            <div class="assessment-line">{{ assessment.name }}</div>
+            {% else %}
+            <div class="assessment-line">None</div>
+            {% endfor %}
+          </td>
+          <td>
+            {% for assessment in clo.assessments %}
+            <div class="assessment-line">{{ "%.0f"|format(assessment.max_score) }}</div>
+            {% else %}
+            <div class="assessment-line">0</div>
+            {% endfor %}
+          </td>
+        </tr>
+        {% endfor %}
+        <tr>
+          <th colspan="2">Total</th>
+          {% for plo in plos %}
+            {% set total = namespace(value=0) %}
+            {% for clo in clos %}
+              {% for item in clo.mappings %}
+                {% if item.plo_id == plo.id %}
+                  {% set total.value = total.value + item.weight %}
+                {% endif %}
+              {% endfor %}
+            {% endfor %}
+          <th class="text-center">{{ "%.0f%%"|format(total.value * 100) if total.value else "" }}</th>
+          {% endfor %}
+          <th></th>
+          <th class="text-center">{{ "%.0f"|format(assessments|sum(attribute="max_score")) }}</th>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="panel">
+  <form method="post" action="/classes/{{ class.id }}/marks">
+    <div class="table-responsive mark-table">
+      <table class="table table-bordered align-middle">
+        <thead>
+          <tr>
+            <th>Student ID</th>
+            <th>Student Name</th>
+            {% for assessment in assessments %}
+            <th>
+              {{ assessment.name }}
+              <span class="text-secondary">/{{ assessment.max_score }}</span>
+              {% if can(user, "import_marks") %}
+              <a class="small d-block" href="/classes/{{ class.id }}/assessment/{{ assessment.id }}/template">Template</a>
+              {% endif %}
+            </th>
+            {% endfor %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for enrollment in class.students %}
+          <tr>
+            <td>{{ enrollment.student.student_no }}</td>
+            <td>{{ enrollment.student.name_en }}</td>
+            {% for assessment in assessments %}
+            {% set score = score_map.get((enrollment.student.id, assessment.id)) %}
+            <td><input class="form-control form-control-sm" name="score_{{ enrollment.student.id }}_{{ assessment.id }}" type="number" step="0.01" min="0" max="{{ assessment.max_score }}" value="{{ score.score if score else '' }}"></td>
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <button class="btn btn-primary">Save Marks</button>
+  </form>
+</section>
+
+{% if can(user, "import_marks") %}
+<section class="panel mt-4">
+  <h2 class="h5">Import Marks From Excel</h2>
+  <div class="row g-3">
+    {% for assessment in assessments %}
+    <div class="col-lg-4">
+      <form method="post" action="/classes/{{ class.id }}/assessment/{{ assessment.id }}/import" enctype="multipart/form-data" class="import-box">
+        <strong>{{ assessment.name }}</strong>
+        <input class="form-control form-control-sm" type="file" name="file" accept=".xlsx" required>
+        <button class="btn btn-sm btn-outline-primary">Import</button>
+      </form>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+{% endblock %}

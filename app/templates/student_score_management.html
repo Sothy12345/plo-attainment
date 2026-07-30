@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+.score-page{display:flex;flex-direction:column;gap:18px}.score-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px}.score-header h1{margin:0;font-size:30px;font-weight:800;color:#071b4d}.score-header p{margin:6px 0 0;color:#53627a}.score-card{background:#fff;border:1px solid #e4e9f2;border-radius:14px;padding:18px;box-shadow:0 8px 24px rgba(10,31,68,.04)}.score-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px}.score-stat{display:flex;align-items:center;gap:14px}.score-stat .icon{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;background:#eef5ff;color:#0b63ce;font-size:20px}.score-stat .value{font-size:26px;font-weight:800;color:#071b4d;line-height:1}.score-stat .label{font-size:13px;color:#63718a;margin-top:4px}.filter-grid{display:grid;grid-template-columns:1.2fr .8fr 1fr 1.6fr auto;gap:12px;align-items:end}.form-label{font-weight:700;color:#061847;margin-bottom:6px}.form-control,.form-select{border:1px solid #dce4ef;border-radius:10px;padding:10px 12px}.btn-main{background:#0b63ce;color:#fff;border:0;border-radius:10px;padding:10px 16px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:6px}.btn-outline{background:#fff;color:#0b63ce;border:1px solid #b8d5ff;border-radius:10px;padding:10px 16px;font-weight:700;text-decoration:none;display:inline-flex;align-items:center;gap:6px}.btn-danger-soft{background:#fff3f3;color:#d92727;border:1px solid #ffc9c9;border-radius:10px;padding:10px 16px;font-weight:700}.table-wrap{overflow:auto;border:1px solid #e8edf5;border-radius:12px}.score-table{width:100%;border-collapse:collapse;min-width:980px}.score-table th{background:#f5f8fc;color:#061847;text-align:left;padding:12px;font-size:14px;border-bottom:1px solid #e8edf5;white-space:nowrap}.score-table td{padding:10px 12px;border-bottom:1px solid #edf1f6;vertical-align:middle}.score-table input{width:92px;border:1px solid #dce4ef;border-radius:8px;padding:8px 10px}.score-table .student-name{font-weight:700;color:#061847}.badge-soft{display:inline-flex;align-items:center;gap:6px;border-radius:999px;padding:5px 10px;background:#eef5ff;color:#0b63ce;font-weight:700;font-size:12px}.alert-ok{background:#eaf8ef;border:1px solid #c8eed6;color:#146c2e;border-radius:12px;padding:12px 14px}.alert-bad{background:#fff0f0;border:1px solid #ffd0d0;color:#b42318;border-radius:12px;padding:12px 14px}.section-title{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}.section-title h2{font-size:20px;font-weight:800;margin:0;color:#071b4d}.quick-assessment{display:grid;grid-template-columns:1.5fr .6fr .6fr auto;gap:10px;align-items:end}.muted{color:#66758f}.empty{padding:28px;text-align:center;color:#66758f}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}@media(max-width:1100px){.score-grid{grid-template-columns:repeat(2,1fr)}.filter-grid,.quick-assessment{grid-template-columns:1fr 1fr}.score-header{flex-direction:column}}@media(max-width:700px){.score-grid,.filter-grid,.quick-assessment{grid-template-columns:1fr}}
+</style>
+
+<div class="score-page">
+  <div class="score-header">
+    <div>
+      <h1>Student Score Management</h1>
+      <p>Manage and store student scores by programme, generation, class code, and course.</p>
+    </div>
+    <a class="btn-outline" href="/programs/{{ page.selected_program.id if page.selected_program else 1 }}/reports"><i class="bi bi-graph-up"></i> View PLO Report</a>
+  </div>
+
+  {% if page.message %}<div class="alert-ok"><i class="bi bi-check-circle"></i> Saved successfully.</div>{% endif %}
+  {% if page.error %}<div class="alert-bad"><i class="bi bi-exclamation-triangle"></i> Error: {{ page.error.replace('_',' ') }}</div>{% endif %}
+
+  <div class="score-grid">
+    <div class="score-card score-stat"><div class="icon"><i class="bi bi-people"></i></div><div><div class="value">{{ page.stats.students }}</div><div class="label">Students</div></div></div>
+    <div class="score-card score-stat"><div class="icon"><i class="bi bi-book"></i></div><div><div class="value">{{ page.stats.courses }}</div><div class="label">Courses in class</div></div></div>
+    <div class="score-card score-stat"><div class="icon"><i class="bi bi-clipboard-check"></i></div><div><div class="value">{{ page.stats.assessments }}</div><div class="label">Assessments</div></div></div>
+    <div class="score-card score-stat"><div class="icon"><i class="bi bi-bar-chart"></i></div><div><div class="value">{{ page.stats.completion }}%</div><div class="label">Score completion</div></div></div>
+  </div>
+
+  <section class="score-card">
+    <div class="section-title"><h2>1. Select Class and Course</h2><span class="badge-soft"><i class="bi bi-funnel"></i> Filter by Programme + Generation</span></div>
+    <form method="get" action="/admin/student-scores" class="filter-grid">
+      <div>
+        <label class="form-label">Programme</label>
+        <select class="form-select" name="program_id" onchange="this.form.submit()">
+          <option value="">All programmes</option>
+          {% for program in page.programs %}
+          <option value="{{ program.id }}" {% if page.selected_program_id == program.id %}selected{% endif %}>{{ program.code }} · {{ program.name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Generation</label>
+        <select class="form-select" name="generation" onchange="this.form.submit()">
+          <option value="">All</option>
+          {% for gen in page.generations %}<option value="{{ gen }}" {% if page.selected_generation == gen %}selected{% endif %}>Generation {{ gen }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Class Code</label>
+        <select class="form-select" name="class_code" onchange="this.form.submit()">
+          {% for code in page.class_codes %}<option value="{{ code }}" {% if page.selected_class_code == code %}selected{% endif %}>{{ code }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">Course</label>
+        <select class="form-select" name="course_id" onchange="this.form.submit()">
+          {% for course in page.courses %}<option value="{{ course.id }}" {% if page.selected_course_id == course.id %}selected{% endif %}>{{ course.code }} · {{ course.title }}</option>{% endfor %}
+        </select>
+      </div>
+      <button class="btn-main" type="submit"><i class="bi bi-search"></i> Load</button>
+    </form>
+  </section>
+
+  <section class="score-card">
+    <div class="section-title"><h2>2. Assessment Setup</h2><span class="muted">Add assessment columns if this course has none.</span></div>
+    <form method="post" action="/admin/student-scores/assessment/create" class="quick-assessment">
+      <input type="hidden" name="program_id" value="{{ page.selected_program_id or '' }}">
+      <input type="hidden" name="generation" value="{{ page.selected_generation }}">
+      <input type="hidden" name="class_code" value="{{ page.selected_class_code }}">
+      <input type="hidden" name="course_id" value="{{ page.selected_course_id or '' }}">
+      <div><label class="form-label">Assessment Name</label><input class="form-control" name="assessment_name" placeholder="Quiz 1 / Midterm / Final / Project" required></div>
+      <div><label class="form-label">Max Score</label><input class="form-control" type="number" step="0.01" min="1" name="max_score" value="100"></div>
+      <div><label class="form-label">Weight %</label><input class="form-control" type="number" step="0.01" min="0" max="100" name="weight" value="10"></div>
+      <button class="btn-outline" type="submit"><i class="bi bi-plus-circle"></i> Add Assessment</button>
+    </form>
+  </section>
+
+  <section class="score-card">
+    <div class="section-title">
+      <h2>3. Enter Student Scores</h2>
+      <div class="muted">{{ page.selected_class_code }}{% if page.selected_course %} · {{ page.selected_course.code }}{% endif %}</div>
+    </div>
+
+    {% if not page.students %}
+      <div class="empty"><i class="bi bi-people"></i><br>No students found in this selected class/course. Please assign students to the cohort first.</div>
+    {% elif not page.assessments %}
+      <div class="empty"><i class="bi bi-clipboard"></i><br>No assessments found. Add an assessment above before entering scores.</div>
+    {% else %}
+    <form method="post" action="/admin/student-scores/save">
+      <input type="hidden" name="program_id" value="{{ page.selected_program_id or '' }}">
+      <input type="hidden" name="generation" value="{{ page.selected_generation }}">
+      <input type="hidden" name="class_code" value="{{ page.selected_class_code }}">
+      <input type="hidden" name="course_id" value="{{ page.selected_course_id or '' }}">
+      <div class="table-wrap">
+        <table class="score-table">
+          <thead>
+            <tr>
+              <th>No.</th><th>Student ID</th><th>Student Name</th>
+              {% for assessment in page.assessments %}<th>{{ assessment.name }}<br><span class="muted">Max {{ assessment.max_score:g }}</span></th>{% endfor %}
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for student in page.students %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td><span class="badge-soft">{{ student.student_no }}</span></td>
+              <td class="student-name">{{ student.name_kh or student.name_en }}</td>
+              {% set ns = namespace(locked=false, saved=0) %}
+              {% for assessment in page.assessments %}
+                {% set score = page.score_map.get((student.id, assessment.id)) %}
+                {% if score %}{% set ns.saved = ns.saved + 1 %}{% endif %}
+                {% if score and score.locked %}{% set ns.locked = true %}{% endif %}
+                <td><input type="number" step="0.01" min="0" max="{{ assessment.max_score }}" name="score_{{ student.id }}_{{ assessment.id }}" value="{{ score.score if score else '' }}" {% if score and score.locked %}readonly title="Locked score"{% endif %}></td>
+              {% endfor %}
+              <td>{% if ns.locked %}<span class="badge-soft" style="background:#fff4e6;color:#b45309">Locked</span>{% elif ns.saved == page.assessments|length %}<span class="badge-soft" style="background:#eaf8ef;color:#146c2e">Complete</span>{% else %}<span class="badge-soft">Draft</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <div class="actions">
+        <button class="btn-main" name="score_action" value="save" type="submit"><i class="bi bi-save"></i> Save Scores</button>
+        <button class="btn-outline" name="score_action" value="submit" type="submit"><i class="bi bi-lock"></i> Submit and Lock</button>
+      </div>
+    </form>
+    <form method="post" action="/admin/student-scores/unlock" class="actions">
+      <input type="hidden" name="program_id" value="{{ page.selected_program_id or '' }}">
+      <input type="hidden" name="generation" value="{{ page.selected_generation }}">
+      <input type="hidden" name="class_code" value="{{ page.selected_class_code }}">
+      <input type="hidden" name="course_id" value="{{ page.selected_course_id or '' }}">
+      <button class="btn-danger-soft" type="submit"><i class="bi bi-unlock"></i> Unlock Scores</button>
+    </form>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}
