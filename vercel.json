@@ -1,7 +1,1 @@
-{
-  "functions": {
-    "api/index.py": {
-      "includeFiles": ["some_folder/"] 
-    }
-  }
-}
+"includeFiles": "{app/templates/**,app/static/**,obe_plo.db}"
