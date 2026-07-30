@@ -1,1 +1,8 @@
-"includeFiles": "{app/templates/**,app/static/**,obe_plo.db}"
+{
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api/index"
+    }
+  ]
+}
