@@ -1,0 +1,153 @@
+{#
+  Shared documents manager used by the admin, dean, manager and teacher pages.
+  `page.base` is the URL the forms return to, so each role stays on its own page.
+#}
+
+{% macro documents_panel(page) %}
+<style>
+.dm-alert{display:flex;align-items:flex-start;gap:9px;border-radius:10px;padding:11px 14px;margin-bottom:14px;font-size:13px;font-weight:700}
+.dm-alert.ok{background:#eaf8ef;border:1px solid #a9dab9;color:#176d39}
+.dm-alert.err{background:#fff1f1;border:1px solid #f2b6b6;color:#a52626}
+.dm-upload{background:#fff;border:1px solid #d3e0f0;border-radius:12px;margin-bottom:16px;overflow:hidden}
+.dm-upload summary{list-style:none;cursor:pointer;padding:14px 17px;display:flex;justify-content:space-between;align-items:center;color:#0b2355;font-weight:800}
+.dm-upload summary::-webkit-details-marker{display:none}
+.dm-upload[open] summary{border-bottom:1px solid #e7edf5}
+.dm-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;padding:16px 17px;align-items:start}
+.dm-form label{display:grid;gap:5px;font-size:11px;font-weight:800;color:#294064;text-transform:uppercase;letter-spacing:.03em}
+.dm-form input,.dm-form select,.dm-form textarea{border:1px solid #c8d6e8;border-radius:8px;padding:10px 11px;background:#fff;color:#102653;font-size:14px;width:100%}
+.dm-form input[type=file]{padding:8px;background:#f7fafd}
+.dm-form textarea{min-height:74px;resize:vertical}
+.dm-form .wide{grid-column:1/-1}
+.dm-form .actions{grid-column:1/-1;display:flex;gap:9px;justify-content:flex-end}
+.dm-btn{height:42px;border:0;border-radius:8px;padding:0 18px;background:#075fe8;color:#fff;font-weight:800;cursor:pointer;font-size:14px}
+.dm-btn.ghost{background:#eef2f7;color:#40536f}
+.dm-btn.danger{background:#fff1f1;color:#a52626}
+.dm-wrap{background:#fff;border:1px solid #d3e0f0;border-radius:12px;overflow:hidden}
+.dm-head{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:15px 17px;border-bottom:1px solid #e7edf5}
+.dm-head h2{margin:0;font-size:17px;color:#0b2355}
+.dm-head span{color:#6b7a91;font-size:12px}
+.dm-table-wrap{overflow:auto}
+.dm-table{width:100%;min-width:920px;border-collapse:collapse}
+.dm-table th,.dm-table td{padding:11px 12px;border-bottom:1px solid #e7edf5;text-align:left;font-size:13px;color:#102a5e;vertical-align:top}
+.dm-table th{background:#f5f8fc;font-size:11px;text-transform:uppercase;color:#40536f;white-space:nowrap}
+.dm-table tr:last-child td{border-bottom:0}
+.dm-title{display:grid;gap:2px}
+.dm-title strong{color:#0b2355}
+.dm-title small{color:#6b7a91}
+.dm-pill{display:inline-flex;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:800;white-space:nowrap}
+.dm-pill.green{background:#dcf5e4;color:#166534}
+.dm-pill.orange{background:#fff3cd;color:#875d00}
+.dm-pill.grey{background:#eef2f7;color:#66788f}
+.dm-pill.blue{background:#dbeafe;color:#1d4ed8}
+.dm-actions{display:flex;align-items:center;gap:8px;white-space:nowrap}
+.dm-actions a,.dm-actions button{border:0;background:transparent;padding:4px;cursor:pointer;text-decoration:none;font-weight:800;font-size:12px}
+.dm-actions .dl{color:#075fe8}
+.dm-actions .ed{color:#40536f}
+.dm-actions .rm{color:#dc3545}
+.dm-actions form{margin:0}
+.dm-edit{background:#f8fbff}
+.dm-edit td{padding-top:0}
+.dm-edit form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px;padding:12px 0}
+.dm-none{color:#6b7a91}
+@media(max-width:700px){.dm-form{grid-template-columns:1fr}}
+</style>
+
+{% if request.query_params.get('doc_created') %}
+<div class="dm-alert ok"><i class="bi bi-check-circle-fill"></i><span>Document saved.</span></div>
+{% elif request.query_params.get('doc_updated') %}
+<div class="dm-alert ok"><i class="bi bi-check-circle-fill"></i><span>Document updated.</span></div>
+{% elif request.query_params.get('doc_deleted') %}
+<div class="dm-alert ok"><i class="bi bi-trash"></i><span>Document deleted.</span></div>
+{% elif request.query_params.get('doc_error') == 'required' %}
+<div class="dm-alert err"><i class="bi bi-exclamation-circle-fill"></i><span>A document title is required.</span></div>
+{% elif request.query_params.get('doc_error') == 'too_large' %}
+<div class="dm-alert err"><i class="bi bi-exclamation-circle-fill"></i><span>That file is larger than the 25 MB limit.</span></div>
+{% endif %}
+
+{% if page.can_upload %}
+<details class="dm-upload" {% if request.query_params.get('doc_error') %}open{% endif %}>
+  <summary><span><i class="bi bi-cloud-arrow-up"></i> Upload a document</span><i class="bi bi-chevron-down"></i></summary>
+  <form class="dm-form" method="post" action="/documents/upload" enctype="multipart/form-data">
+    <input type="hidden" name="return_to" value="{{ page.base }}">
+    <label>Title<input name="title" required maxlength="200" placeholder="e.g. Assessment handbook 2025"></label>
+    <label>Category
+      <select name="category">{% for item in page.categories %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select>
+    </label>
+    <label>Status
+      <select name="status">{% for item in page.statuses %}<option value="{{ item }}">{{ item }}</option>{% endfor %}</select>
+    </label>
+    {% if page.programmes|length > 1 or user.role.value == 'super_admin' %}
+    <label>Programme
+      <select name="program_id">
+        <option value="">{{ 'All faculties' if user.role.value == 'super_admin' else 'Whole faculty' }}</option>
+        {% for programme in page.programmes %}<option value="{{ programme.id }}">{{ programme.code }} · {{ programme.name }}</option>{% endfor %}
+      </select>
+    </label>
+    {% endif %}
+    <label>File<input type="file" name="file"></label>
+    <label class="wide">Description<textarea name="description" maxlength="1000" placeholder="What is this document for?"></textarea></label>
+    <div class="actions">
+      <button class="dm-btn" type="submit"><i class="bi bi-upload"></i> Save document</button>
+    </div>
+  </form>
+</details>
+{% endif %}
+
+<div class="dm-wrap">
+  <div class="dm-head"><h2>Documents</h2><span>{{ page.rows|length }} document(s) in your scope</span></div>
+  <div class="dm-table-wrap">
+    <table class="dm-table">
+      <thead><tr><th>#</th><th>Title</th><th>Category</th><th>Scope</th><th>File</th><th>Uploaded by</th><th>Added</th><th>Status</th><th>Actions</th></tr></thead>
+      <tbody>
+        {% for row in page.rows %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><div class="dm-title"><strong>{{ row.title }}</strong>{% if row.description %}<small>{{ row.description }}</small>{% endif %}</div></td>
+          <td><span class="dm-pill blue">{{ row.category }}</span></td>
+          <td>{{ row.scope }}</td>
+          <td>{% if row.has_file %}{{ row.file_name }}<br><small class="dm-none">{{ row.size_label }}</small>{% else %}<span class="dm-none">No file</span>{% endif %}</td>
+          <td>{{ row.uploaded_by }}</td>
+          <td>{{ row.created_at }}</td>
+          <td>{% if row.status == 'Published' %}<span class="dm-pill green">Published</span>{% elif row.status == 'Draft' %}<span class="dm-pill orange">Draft</span>{% else %}<span class="dm-pill grey">Archived</span>{% endif %}</td>
+          <td>
+            <div class="dm-actions">
+              {% if row.has_file %}<a class="dl" href="/documents/{{ row.id }}/download"><i class="bi bi-download"></i> Download</a>{% endif %}
+              {% if row.can_manage %}
+              <a class="ed" href="{{ page.base }}?edit={{ row.id }}"><i class="bi bi-pencil"></i> Edit</a>
+              <form method="post" action="/documents/{{ row.id }}/delete" onsubmit="return confirm('Delete &quot;{{ row.title }}&quot;? This also removes the stored file.');">
+                <input type="hidden" name="return_to" value="{{ page.base }}">
+                <button class="rm" type="submit"><i class="bi bi-trash"></i> Delete</button>
+              </form>
+              {% endif %}
+            </div>
+          </td>
+        </tr>
+        {% if row.can_manage and request.query_params.get('edit')|string == row.id|string %}
+        <tr class="dm-edit">
+          <td colspan="9">
+            <form method="post" action="/documents/{{ row.id }}/update">
+              <input type="hidden" name="return_to" value="{{ page.base }}">
+              <label style="display:grid;gap:5px;font-size:11px;font-weight:800;color:#294064">Title<input name="title" value="{{ row.title }}" required></label>
+              <label style="display:grid;gap:5px;font-size:11px;font-weight:800;color:#294064">Category
+                <select name="category">{% for item in page.categories %}<option value="{{ item }}" {{ 'selected' if item == row.category }}>{{ item }}</option>{% endfor %}</select>
+              </label>
+              <label style="display:grid;gap:5px;font-size:11px;font-weight:800;color:#294064">Status
+                <select name="status">{% for item in page.statuses %}<option value="{{ item }}" {{ 'selected' if item == row.status }}>{{ item }}</option>{% endfor %}</select>
+              </label>
+              <label style="display:grid;gap:5px;font-size:11px;font-weight:800;color:#294064;grid-column:1/-1">Description<textarea name="description">{{ row.description }}</textarea></label>
+              <div style="grid-column:1/-1;display:flex;gap:9px;justify-content:flex-end">
+                <a class="dm-btn ghost" href="{{ page.base }}" style="display:inline-flex;align-items:center;text-decoration:none">Cancel</a>
+                <button class="dm-btn" type="submit"><i class="bi bi-check2"></i> Save</button>
+              </div>
+            </form>
+          </td>
+        </tr>
+        {% endif %}
+        {% else %}
+        <tr><td colspan="9" style="padding:28px;text-align:center;color:#6b7a91">No documents yet.{% if page.can_upload %} Use <strong>Upload a document</strong> above to add the first one.{% endif %}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endmacro %}

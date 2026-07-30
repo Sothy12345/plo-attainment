@@ -1,0 +1,32 @@
+{#
+  Topbar account chip and menu, shared by every role.
+
+  Name and role come from the signed-in user, so no role shell carries a
+  hardcoded person. `avatar_class` lets a shell keep its own accent colour.
+#}
+
+{% macro user_menu(user, avatar_class='') %}
+{% set display_name = user.name if user and user.name else 'My Account' %}
+{% set display_email = user.email if user and user.email else '' %}
+{% set picture = avatar_url(user) %}
+<div class="account-chip">
+  <span class="admin-avatar {{ avatar_class }}{{ ' has-photo' if picture }}">
+    {% if picture %}<img src="{{ picture }}" alt="{{ display_name }}">{% else %}<i class="bi bi-person"></i>{% endif %}
+  </span>
+  <div class="account-chip-text">
+    <strong>{{ display_name }}</strong>
+    <span>{{ role_title(user) }}</span>
+  </div>
+</div>
+<details class="topbar-menu account-menu">
+  <summary class="admin-logout" title="Account menu" aria-label="Account menu"><i class="bi bi-chevron-down"></i></summary>
+  <div class="topbar-popover account-popover">
+    <h3>{{ display_name }}<small>{{ display_email }}</small></h3>
+    <a href="/profile"><i class="bi bi-image"></i> {{ 'Change photo' if picture else 'Add photo' }}</a>
+    <a href="/profile"><i class="bi bi-person-circle"></i> My profile</a>
+    <a href="/profile#info"><i class="bi bi-card-text"></i> Profile information</a>
+    <a href="/profile#password"><i class="bi bi-shield-lock"></i> Change password</a>
+    <form method="post" action="/logout"><button type="submit"><i class="bi bi-box-arrow-right"></i> Logout</button></form>
+  </div>
+</details>
+{% endmacro %}

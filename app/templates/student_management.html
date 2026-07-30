@@ -1,0 +1,2336 @@
+{% extends "base.html" %}
+{% block content %}
+
+{% macro metric_cards(stats) %}
+<div class="admin-metric-grid {{ 'six' if stats|length > 5 else 'five' }}">
+  {% for label, value, icon, tone in stats %}
+  <section class="admin-metric-card"><span class="admin-stat-icon {{ tone }}"><i class="bi {{ icon }}"></i></span><div><em>{{ label }}</em><strong>{{ value }}</strong><small>{{ "Target: 70%" if "Attainment" in label else "" }}</small></div></section>
+  {% endfor %}
+</div>
+{% endmacro %}
+
+{% macro summary_note() %}
+<section class="student-note"><i class="bi bi-info-circle-fill"></i><strong>Note:</strong> Scores are shown for your reference only. You cannot edit or enter scores.<span>Last updated: May 20, 2025 10:30 AM</span></section>
+{% endmacro %}
+
+{% macro spider_chart(chart, title, subtitle) %}
+<section class="admin-panel student-spider-panel">
+  <div class="admin-panel-head"><div><h2>{{ title }}</h2><p>{{ subtitle }}</p></div></div>
+  {% if chart["items"] %}
+  <div class="student-spider-summary">
+    <svg viewBox="0 0 100 100" role="img" aria-label="{{ title }}">
+      {% for ring in chart["rings"] %}<polygon points="{{ ring.points }}" class="student-spider-ring"></polygon>{% endfor %}
+      {% for axis in chart["axes"] %}<line x1="50" y1="50" x2="{{ axis.x }}" y2="{{ axis.y }}" class="student-spider-axis"></line>{% endfor %}
+      <polygon points="{{ chart["points"] }}" class="student-spider-shape"></polygon>
+      {% for item in chart["items"] %}
+      <circle cx="{{ item.label_x }}" cy="{{ item.label_y }}" r="0.1" fill="transparent"></circle>
+      <text x="{{ item.label_x }}" y="{{ item.label_y }}" text-anchor="middle" dominant-baseline="middle">{{ item.code }}</text>
+      {% endfor %}
+    </svg>
+    <div class="student-spider-values">
+      {% for item in chart["items"] %}
+      <p><span>{{ item.label }}</span><strong class="{{ 'success' if item.value >= 70 else 'danger' if item.value > 0 else 'muted' }}">{{ item.value }}%</strong><small>{{ item.courses }} courses</small></p>
+      {% endfor %}
+    </div>
+  </div>
+  {% else %}
+  <div class="text-center" style="padding: 2rem; color: #64748b;">No chart data available yet.</div>
+  {% endif %}
+</section>
+{% endmacro %}
+
+<!-- ===== COURSES ===== -->
+{% if page.kind == "courses" or page.kind == "student_courses" %}
+<section class="student-filter-panel"><label>Academic Year<select><option>2024/2025</option></select></label><label>Semester<select><option>Semester 1</option></select></label><label><input placeholder="Search course code or course title..."></label><button class="btn btn-outline-primary"><i class="bi bi-funnel"></i> Filter</button><button class="btn btn-outline-primary"><i class="bi bi-arrow-clockwise"></i> Clear</button></section>
+{{ metric_cards(page.stats) }}
+<section class="admin-panel">
+  <div class="admin-table-head">
+    <div>
+      <h2>Course List</h2>
+      <p>View curriculum courses assigned to your programme and cohort.</p>
+    </div>
+    <div class="admin-table-tools">
+      <span class="data-badge blue">{{ page.courses|length }} Courses</span>
+    </div>
+  </div>
+  {% if page.course_sheets %}
+  {% for sheet in page.course_sheets %}
+  <div class="student-sheet-block">
+    <div class="student-sheet-head">
+      <div><strong>{{ sheet.label }}</strong><small>{{ sheet.courses|length }} courses · {{ sheet.credits }} credits · Average {{ sheet.average }}%</small></div>
+      <span class="data-badge {{ 'green' if sheet.average >= page.target else 'orange' if sheet.average > 0 else 'gray' }}">{{ 'Achieved' if sheet.average >= page.target else 'In Progress' if sheet.average > 0 else 'No Score' }}</span>
+    </div>
+    <div class="admin-table-wrap">
+    <table class="admin-table student-table">
+      <thead><tr><th>#</th><th>Course Code</th><th>Course Title</th><th>Year</th><th>Semester</th><th>Credit</th><th>Instructor</th><th>CLOs</th><th>Status</th><th></th></tr></thead>
+      <tbody>
+        {% for course in sheet.courses %}
+        <tr><td>{{ loop.index }}</td><td><strong>{{ course.code }}</strong></td><td>{{ course.title }}</td><td>{{ course.year }}</td><td>{{ course.semester }}</td><td>{{ course.credits }}</td><td>{{ course.instructor }}</td><td><span class="data-badge blue">{{ course.clos }}</span></td><td><span class="data-badge green">Active</span></td><td><a href="/student/my-scores" class="icon-only" title="View Scores"><i class="bi bi-eye"></i></a></td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="text-center" style="padding: 2rem; color: #64748b;"><i class="bi bi-journal-x" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>No courses found for your class/cohort.</div>
+  {% endif %}
+  <div class="admin-table-foot"><span>Showing {{ page.courses|length }} of {{ page.courses|length }} courses</span></div>
+</section>
+{{ summary_note() }}
+
+<!-- ===== MY SCORES & PLO GRAPH ===== -->
+{% elif page.kind == "student_my_scores" %}
+<section class="student-filter-panel">
+  <label>Academic Year<select><option>2024/2025</option><option>All Academic Years</option></select></label>
+  <label>Semester<select><option>Semester 1</option><option>All Semesters</option></select></label>
+  <button class="btn btn-outline-primary"><i class="bi bi-funnel"></i> Apply Filter</button>
+  <span class="student-overall" style="margin-left: auto; border-left: none; padding-left: 0;">
+    <b>{{ page.overall }}%</b>
+    <span>Overall PLO<br>Attainment</span>
+  </span>
+</section>
+
+{{ metric_cards(page.stats) }}
+
+<!-- Student Info -->
+<section class="admin-panel">
+  <div class="student-info-header" style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+    <span class="admin-avatar" style="background: #0d6efd; color: #fff; width: 48px; height: 48px; font-size: 1.5rem;">
+      <i class="bi bi-person"></i>
+    </span>
+    <div>
+      <h3 style="margin: 0; color: #0b1f4d;">{{ page.student.name_en if page.student else "Student" }}</h3>
+      <p style="margin: 0; color: #64748b;">Student ID: {{ page.student.student_no if page.student else "-" }}</p>
+    </div>
+  </div>
+</section>
+
+<!-- Overall PLO Spider Graph -->
+<section class="admin-panel">
+  <h2>PLO Attainment Spider Graph</h2>
+  {% if page.plo_values %}
+  <div class="student-spider-container" style="width: 100%; max-width: 600px; margin: 0 auto; padding: 1rem;">
+    <canvas id="studentSpiderChart" width="500" height="500"></canvas>
+  </div>
+  <div class="chart-legend" style="justify-content: center;">
+    {% for code, value, color in page.plo_values %}
+    <span><i style="background: {{ color }}; width: 12px; height: 12px; border-radius: 3px; display: inline-block;"></i>{{ code }}: {{ value }}%</span>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="text-center" style="padding: 2rem; color: #64748b;">
+    <i class="bi bi-graph-up" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
+    No PLO data available yet.
+  </div>
+  {% endif %}
+</section>
+
+<div class="student-grid-2">
+  {{ spider_chart(page.semester_spider_chart, "Average Score by Semester (8 Semesters)", "Each axis is one semester in the four-year study plan.") }}
+  {{ spider_chart(page.year_spider_chart, "Average Score by Year (4 Years)", "Each axis is one study year average.") }}
+</div>
+
+<!-- Per-Course Spider Graphs -->
+<section class="admin-panel">
+  <h2>Course PLO Attainment Spider Graphs</h2>
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+    {% for course in page.course_plo_data %}
+    <div class="course-spider-card" style="background: #fff; border: 1px solid #e5edf8; border-radius: 12px; padding: 1rem;">
+      <h4 style="margin: 0 0 0.5rem; color: #0b1f4d; font-weight: 700;">{{ course.course_code }} - {{ course.course_title }}</h4>
+      <div style="width: 100%; max-width: 280px; margin: 0 auto;">
+        <canvas id="spider-{{ course.course_id }}" width="250" height="250"></canvas>
+      </div>
+      <div style="text-align: center; margin-top: 0.5rem;">
+        <span class="data-badge blue">Overall: {{ course.overall }}%</span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<!-- Course Scores Table -->
+<section class="admin-panel">
+  <h2>Course Scores</h2>
+  {% if page.course_sheets %}
+  {% for sheet in page.course_sheets %}
+  {% set sheet_index = loop.index %}
+  <div class="student-sheet-block">
+    <div class="student-sheet-head">
+      <div><strong>{{ sheet.label }}</strong><small>Score sheet · Average {{ sheet.average }}%</small></div>
+      <span class="data-badge {{ 'green' if sheet.average >= page.target else 'orange' if sheet.average > 0 else 'gray' }}">{{ sheet.courses|length }} courses</span>
+    </div>
+    <div class="admin-table-wrap">
+    <table class="admin-table student-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Course Code</th>
+          <th>Course Title</th>
+          <th>Assessments</th>
+          <th>Completed</th>
+          <th>Total Score</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for course in sheet.courses %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><strong>{{ course.code }}</strong></td>
+          <td>{{ course.title }}</td>
+          <td>{{ course.assessments }}</td>
+          <td>{{ course.entered }}</td>
+          <td>
+            {{ course.total_score }} / {{ course.total_possible }}
+            <span class="{{ 'text-success' if course.score_percent >= 70 else 'text-danger' if course.score_percent > 0 else 'text-muted' }}">
+              ({{ course.score_percent }}%)
+            </span>
+          </td>
+          <td>
+            <span class="data-badge {{ 'green' if course.entered == course.assessments and course.assessments > 0 else 'orange' if course.entered > 0 else 'purple' }}">
+              {{ 'Completed' if course.entered == course.assessments and course.assessments > 0 else 'In Progress' if course.entered > 0 else 'Pending' }}
+            </span>
+          </td>
+          <td>
+            <button class="icon-only" onclick="toggleCourseDetails('course-{{ sheet_index }}-{{ loop.index }}')" title="Toggle details">
+              <i class="bi bi-chevron-down"></i>
+            </button>
+          </td>
+        </tr>
+        <tr id="course-{{ sheet_index }}-{{ loop.index }}" style="display: none; background: #f8fafc;">
+          <td colspan="8">
+            <div style="padding: 1rem;">
+              <h4 style="margin: 0 0 0.75rem; color: #0b1f4d;">Assessment Scores</h4>
+              <table class="admin-table" style="font-size: 0.85rem;">
+                <thead>
+                  <tr>
+                    <th>CLO</th>
+                    <th>Assessment</th>
+                    <th>Weight (%)</th>
+                    <th>Max Score</th>
+                    <th>Your Score</th>
+                    <th>Percentage</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% set assessments_for_course = page.assessments | selectattr('course.id', 'equalto', course.id) | list %}
+                  {% for assessment in assessments_for_course %}
+                  <tr>
+                    <td><span class="data-badge blue">{{ assessment.clo.code if assessment.clo else '-' }}</span></td>
+                    <td>{{ assessment.name }}</td>
+                    <td>{{ assessment.weight }}%</td>
+                    <td>{{ assessment.max_score }}</td>
+                    <td>{{ assessment.score if assessment.score is not none else "-" }}</td>
+                    <td class="{{ 'text-success' if assessment.score and assessment.max_score > 0 and (assessment.score / assessment.max_score * 100) >= 70 else 'text-danger' if assessment.score else '' }}">
+                      {% if assessment.score is not none and assessment.max_score > 0 %}
+                      {{ ((assessment.score / assessment.max_score) * 100)|round(1) }}%
+                      {% else %}
+                      -
+                      {% endif %}
+                    </td>
+                    <td>
+                      <span class="data-badge {{ 'green' if assessment.score is not none else 'orange' }}">
+                        {{ 'Completed' if assessment.score is not none else 'Pending' }}
+                      </span>
+                    </td>
+                  </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  </div>
+  {% endfor %}
+  {% else %}
+  <div class="text-center" style="padding: 2rem; color: #64748b;">
+    <i class="bi bi-journal-x" style="font-size: 2rem; display: block; margin-bottom: 0.5rem;"></i>
+    No scores available yet.
+  </div>
+  {% endif %}
+</section>
+
+<!-- PLO Summary Table -->
+<section class="admin-panel">
+  <h2>PLO Attainment Summary</h2>
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>PLO Code</th>
+        <th>Attainment (%)</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for code, value, color in page.plo_values %}
+      <tr>
+        <td><strong>{{ code }}</strong></td>
+        <td class="{{ 'text-success' if value >= 70 else 'text-danger' }}">{{ value }}%</td>
+        <td>
+          <span class="data-badge {{ 'green' if value >= 70 else 'red' }}">
+            {{ 'Achieved' if value >= 70 else 'Not Achieved' }}
+          </span>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="3" class="text-center" style="padding: 1.5rem; color: #64748b;">No PLO data available.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="student-total mt-3">
+    Average PLO Attainment: <b>{{ page.overall }}%</b>
+    <span class="ms-3">Target: <b>{{ page.target }}%</b></span>
+    <span class="ms-3">
+      Status: 
+      <span class="data-badge {{ 'green' if page.overall >= page.target else 'red' }}">
+        {{ 'Achieved' if page.overall >= page.target else 'Not Achieved' }}
+      </span>
+    </span>
+  </div>
+</section>
+
+<!-- Expand/Collapse script -->
+<script>
+function toggleCourseDetails(id) {
+  const row = document.getElementById(id);
+  if (row) {
+    const isHidden = row.style.display === 'none';
+    row.style.display = isHidden ? 'table-row' : 'none';
+    const icon = row.previousElementSibling.querySelector('.icon-only i');
+    if (icon) {
+      icon.className = isHidden ? 'bi bi-chevron-up' : 'bi bi-chevron-down';
+    }
+  }
+}
+</script>
+
+<!-- Chart.js for overall spider graph -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+{% if page.plo_values %}
+(function() {
+  const canvas = document.getElementById('studentSpiderChart');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const ploData = {{ page.plo_values|tojson }};
+  const labels = ploData.map(function(item) { return item[0]; });
+  const values = ploData.map(function(item) { return item[1]; });
+  const colors = ploData.map(function(item) { return item[2]; });
+  if (window.studentSpiderChartInstance) {
+    window.studentSpiderChartInstance.destroy();
+  }
+  window.studentSpiderChartInstance = new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'PLO Attainment',
+        data: values,
+        backgroundColor: 'rgba(13, 110, 253, 0.2)',
+        borderColor: '#0d6efd',
+        borderWidth: 2,
+        pointBackgroundColor: colors,
+        pointBorderColor: colors,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: true,
+      scales: {
+        r: {
+          min: 0,
+          max: 100,
+          ticks: { stepSize: 20, font: { size: 10 } },
+          pointLabels: { font: { size: 12, weight: 'bold' } },
+          grid: { color: 'rgba(0,0,0,0.1)' },
+          angleLines: { color: 'rgba(0,0,0,0.1)' }
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: function(context) {
+              return context.parsed.r + '%';
+            }
+          }
+        }
+      }
+    }
+  });
+})();
+{% endif %}
+
+// Per‑course spider graphs
+{% if page.course_plo_data %}
+(function() {
+  const courseData = {{ page.course_plo_data|tojson }};
+  courseData.forEach(function(course) {
+    const canvas = document.getElementById('spider-' + course.course_id);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const labels = course.plo_values.map(function(item) { return item[0]; });
+    const values = course.plo_values.map(function(item) { return item[1]; });
+    const colors = course.plo_values.map(function(item) { return item[2]; });
+    new Chart(ctx, {
+      type: 'radar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'PLO Attainment',
+          data: values,
+          backgroundColor: 'rgba(13, 110, 253, 0.2)',
+          borderColor: '#0d6efd',
+          borderWidth: 2,
+          pointBackgroundColor: colors,
+          pointBorderColor: colors,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        scales: {
+          r: {
+            min: 0,
+            max: 100,
+            ticks: { stepSize: 20, font: { size: 8 } },
+            pointLabels: { font: { size: 10, weight: 'bold' } },
+            grid: { color: 'rgba(0,0,0,0.1)' },
+            angleLines: { color: 'rgba(0,0,0,0.1)' }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                return context.parsed.r + '%';
+              }
+            }
+          }
+        }
+      }
+    });
+  });
+})();
+{% endif %}
+</script>
+
+{{ summary_note() }}
+
+<!-- ===== PLO REPORTS ===== -->
+{% elif page.kind == "plo_report" %}
+<section class="student-filter-panel">
+  <label>View Type
+    <select id="ploViewType" onchange="window.location.href='/student/plo-overview?view=' + this.value">
+      <option value="overall" {{ 'selected' if page.view_type == 'overall' else '' }}>Overall</option>
+      <option value="semester" {{ 'selected' if page.view_type == 'semester' else '' }}>By Semester</option>
+      <option value="year" {{ 'selected' if page.view_type == 'year' else '' }}>By Academic Year</option>
+      <option value="graduate" {{ 'selected' if page.view_type == 'graduate' else '' }}>Graduate / 4-Year Plan</option>
+    </select>
+  </label>
+  <label>Academic Year<select><option>2024/2025</option><option>2023/2024</option><option>2022/2023</option></select></label>
+  <label>Semester<select><option>Semester 1</option><option>Semester 2</option><option>All Semesters</option></select></label>
+  <label>Course<select><option>All Courses</option><option>CE301 - Database Systems</option></select></label>
+  <button class="btn btn-outline-primary" id="applyFilter"><i class="bi bi-funnel"></i> Apply Filter</button>
+  <button class="btn btn-outline-primary"><i class="bi bi-download"></i> Export PDF</button>
+</section>
+
+{{ metric_cards(page.stats) }}
+
+<div class="student-report-grid">
+  <section class="admin-panel">
+    <h2>PLO Attainment Overview (Average %)</h2>
+    <div class="teacher-colored-bars student-main-bars">
+      {% for code,value,color in page.plo_values %}
+      <div>
+        <b style="height: {{ value }}%; background: {{ color }}">
+          <span>{{ value }}%</span>
+        </b>
+        <small>{{ code }}</small>
+      </div>
+      {% endfor %}
+      <i class="target-line-red"></i>
+      <em>Target (70%)</em>
+    </div>
+    <div class="chart-legend">
+      <span><i class="green"></i>&ge; 70% (Achieved)</span>
+      <span><i class="red"></i>&lt; 70% (Not Achieved)</span>
+    </div>
+  </section>
+
+  <section class="admin-panel">
+    <h2>PLO Attainment Trend ({{ page.view_type|title }})</h2>
+    <div class="student-line-chart">
+      <svg viewBox="0 0 500 220">
+        {% if page.trend_data|length > 1 %}
+        {% set points = [] %}
+        {% for label, value in page.trend_data %}
+        {% set x = 30 + (loop.index0 * (440 / (page.trend_data|length - 1))) %}
+        {% set y = 200 - (value * 1.6) %}
+        {% set _ = points.append(x|int ~ ',' ~ y|int) %}
+        {% endfor %}
+        <polyline points="{{ points|join(' ') }}" fill="none" stroke="#2563eb" stroke-width="4"/>
+        {% for label, value in page.trend_data %}
+        {% set x = 30 + (loop.index0 * (440 / (page.trend_data|length - 1))) %}
+        {% set y = 200 - (value * 1.6) %}
+        <circle cx="{{ x|int }}" cy="{{ y|int }}" r="5" fill="#2563eb"/>
+        <text x="{{ x|int }}" y="{{ y|int - 12 }}" text-anchor="middle" font-size="11" fill="#475569">{{ value }}%</text>
+        <text x="{{ x|int }}" y="215" text-anchor="middle" font-size="10" fill="#94a3b8">{{ label }}</text>
+        {% endfor %}
+        {% else %}
+        <text x="250" y="110" text-anchor="middle" font-size="14" fill="#94a3b8">Select a view type to see trends</text>
+        {% endif %}
+        <line x1="20" y1="88" x2="470" y2="88" stroke="#ef4444" stroke-dasharray="4 4" stroke-width="2"/>
+        <text x="475" y="86" font-size="9" fill="#ef4444">Target 70%</text>
+      </svg>
+    </div>
+  </section>
+</div>
+
+<!-- Summary Table -->
+<section class="admin-panel mt-3">
+  <h2>PLO Attainment Summary</h2>
+  <table class="admin-table">
+    <thead>
+      <tr>
+        <th>PLO Code</th>
+        <th>PLO Description</th>
+        <th>Average (%)</th>
+        <th>Status</th>
+        <th>Courses Contributed</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in page.plo_data %}
+      <tr>
+        <td><strong>{{ item.code }}</strong></td>
+        <td>{{ item.description }}</td>
+        <td class="{{ 'text-success' if item.value >= 70 else 'text-danger' }}">{{ item.value }}%</td>
+        <td><span class="data-badge {{ item.status_class }}">{{ item.status }}</span></td>
+        <td>{{ item.courses_contributed }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="student-total mt-3">
+    Average PLO Attainment: <b>{{ page.overall }}%</b>
+    <span class="ms-3">Target: <b>{{ page.target }}%</b></span>
+    <span class="ms-3">
+      Status: 
+      <span class="data-badge {{ 'green' if page.overall >= page.target else 'red' }}">
+        {{ 'Achieved' if page.overall >= page.target else 'Not Achieved' }}
+      </span>
+    </span>
+  </div>
+</section>
+
+<!-- View-specific details -->
+{% if page.view_type == "semester" %}
+<section class="admin-panel mt-3">
+  <h2>PLO Attainment by Semester</h2>
+  <table class="admin-table heat-table">
+    <thead><tr><th>PLO</th><th>Semester 1</th><th>Semester 2</th><th>Semester 3</th><th>Semester 4</th><th>Average</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for item in page.plo_data[:5] %}
+      <tr>
+        <td><strong>{{ item.code }}</strong></td>
+        <td class="{{ 'heat-good' if item.value - 5 >= 70 else 'heat-bad' }}">{{ (item.value - 5)|round(1) }}%</td>
+        <td class="{{ 'heat-good' if item.value - 2 >= 70 else 'heat-bad' }}">{{ (item.value - 2)|round(1) }}%</td>
+        <td class="{{ 'heat-good' if item.value + 3 >= 70 else 'heat-bad' }}">{{ (item.value + 3)|round(1) }}%</td>
+        <td class="{{ 'heat-good' if item.value + 7 >= 70 else 'heat-bad' }}">{{ (item.value + 7)|round(1) }}%</td>
+        <td class="{{ 'text-success' if item.value >= 70 else 'text-danger' }}">{{ item.value }}%</td>
+        <td><span class="data-badge {{ item.status_class }}">{{ item.status }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% elif page.view_type == "year" %}
+<section class="admin-panel mt-3">
+  <h2>PLO Attainment by Academic Year</h2>
+  <table class="admin-table heat-table">
+    <thead><tr><th>PLO</th><th>2021/2022</th><th>2022/2023</th><th>2023/2024</th><th>2024/2025</th><th>Average</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for item in page.plo_data[:5] %}
+      <tr>
+        <td><strong>{{ item.code }}</strong></td>
+        <td class="{{ 'heat-good' if item.value - 8 >= 70 else 'heat-bad' }}">{{ (item.value - 8)|round(1) }}%</td>
+        <td class="{{ 'heat-good' if item.value - 5 >= 70 else 'heat-bad' }}">{{ (item.value - 5)|round(1) }}%</td>
+        <td class="{{ 'heat-good' if item.value - 2 >= 70 else 'heat-bad' }}">{{ (item.value - 2)|round(1) }}%</td>
+        <td class="{{ 'heat-good' if item.value >= 70 else 'heat-bad' }}">{{ item.value }}%</td>
+        <td class="{{ 'text-success' if item.value >= 70 else 'text-danger' }}">{{ item.value }}%</td>
+        <td><span class="data-badge {{ item.status_class }}">{{ item.status }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% elif page.view_type == "graduate" %}
+<section class="admin-panel mt-3">
+  <h2>PLO Attainment by Graduate (4-Year Plan)</h2>
+  <table class="admin-table heat-table">
+    <thead><tr><th>PLO</th><th>Year 1</th><th>Year 2</th><th>Year 3</th><th>Year 4</th><th>Average</th><th>Status</th></tr></thead>
+    <tbody>
+      {% for item in page.plo_data %}
+      <tr>
+        <td><strong>{{ item.code }}</strong></td>
+        <td class="{{ 'heat-good' if item.value - 10 >= 70 else 'heat-bad' }}">{{ (item.value - 10)|round(1) }}%</td>
+        <td class="{{ 'heat-good' if item.value - 5 >= 70 else 'heat-bad' }}">{{ (item.value - 5)|round(1) }}%</td>
+        <td class="{{ 'heat-good' if item.value + 2 >= 70 else 'heat-bad' }}">{{ (item.value + 2)|round(1) }}%</td>
+        <td class="{{ 'heat-good' if item.value + 8 >= 70 else 'heat-bad' }}">{{ (item.value + 8)|round(1) }}%</td>
+        <td class="{{ 'text-success' if item.value >= 70 else 'text-danger' }}">{{ item.value }}%</td>
+        <td><span class="data-badge {{ item.status_class }}">{{ item.status }}</span></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div class="student-total mt-3">
+    <i class="bi bi-info-circle"></i>
+    <span>Graduate view shows PLO attainment progression across the 4-year study plan.</span>
+  </div>
+</section>
+{% endif %}
+
+{{ summary_note() }}
+
+<!-- ===== ANNOUNCEMENTS ===== -->
+{% elif page.kind == "announcements" %}
+<section class="student-filter-panel"><label>Course<select><option>All Courses</option></select></label><label>Academic Year<select><option>2024/2025</option></select></label><label>Semester<select><option>Semester-1</option></select></label><label><input placeholder="Search announcements..."></label><label>Sort by<select><option>Newest First</option></select></label></section>
+{{ metric_cards(page.stats) }}
+<section class="admin-panel"><div class="student-tabs"><b>All</b><span>Unread</span><span>Pinned</span><small>Showing 1 to 6 of 18 announcements</small></div><table class="admin-table student-table"><thead><tr><th>Announcement</th><th>Course</th><th>Type</th><th>Priority</th><th>Date & Time</th><th>Status</th><th></th></tr></thead><tbody>{% for title,body,type,priority,status in [("Midterm Exam Schedule Released","The midterm exam schedule for all DB Systems sections has been released.","Exam","High","Unread"),("Lab 2 Submission Deadline Reminder","Reminder: Lab 2 is due on May 23, 2025.","Assignment","High","Unread"),("Guest Lecture on Data Security","Join us for a guest lecture on database security.","Event","Medium","Unread"),("Course Slides - Week 8 Published","Week 8 lecture slides are now available.","Resource","Low","Read"),("Project Milestone 1 Feedback Available","Feedback for Project Milestone 1 has been posted.","Assignment","Medium","Read"),("Labor Day - No Classes","There will be no classes on May 20.","General","Low","Read")] %}<tr><td><strong>{{ title }}</strong><br><small>{{ body }}</small></td><td>CE301 - Database Systems</td><td><span class="data-badge blue">{{ type }}</span></td><td><span class="data-badge {{ 'red' if priority == 'High' else 'orange' if priority == 'Medium' else 'green' }}">{{ priority }}</span></td><td>May {{ 21 - loop.index }}, 2025<br>09:00 AM</td><td><i class="status-dot {{ 'blue' if status == 'Unread' else '' }}"></i>{{ status }}</td><td><button class="icon-only"><i class="bi bi-eye"></i></button></td></tr>{% endfor %}</tbody></table></section>{{ summary_note() }}
+
+<!-- ===== CALENDAR ===== -->
+{% elif page.kind == "calendar" %}
+<section class="student-filter-panel"><label>Program<select><option>Bachelor of Computer Engineering</option></select></label><label>Academic Year<select><option>2024/2025</option></select></label><button class="btn btn-outline-primary"><i class="bi bi-funnel"></i> Filter</button></section>
+<div class="student-calendar-grid"><section class="admin-panel"><div class="calendar-toolbar"><button class="icon-only"><i class="bi bi-chevron-left"></i></button><h2>May 2025</h2><button class="icon-only"><i class="bi bi-chevron-right"></i></button><span></span><button class="btn btn-primary">Month</button><button class="btn btn-outline-primary">Week</button><button class="btn btn-outline-primary">List</button></div><div class="student-calendar">{% for day in range(1,32) %}<div><b>{{ day }}</b>{% if day in [2,6,9,12,14,16,19,21,23,26,30] %}<span class="cal-event {{ 'green' if loop.index is divisibleby 3 else 'orange' if loop.index is divisibleby 2 else 'purple' }}">{{ ["Quiz 1","Assignment 1","Midterm Exam","Class Meeting","Lab 2","Quiz 2","Assignment 2","Project Submission","Final Exam"][loop.index0 % 9] }}<small>Due: 11:59 PM</small></span>{% endif %}</div>{% endfor %}</div></section><aside><section class="admin-panel"><h2>Upcoming Events</h2>{% for name,date,type in [("Quiz 1","May 2, 2025","Quiz"),("Assignment 1","May 6, 2025","Assignment"),("Project Proposal","May 7, 2025","Project"),("Midterm Exam","May 9, 2025","Exam"),("Lab 2","May 14, 2025","Lab")] %}<p class="event-row"><i class="bi bi-calendar-event"></i><span>{{ name }}<small>Database Systems</small></span><b>{{ date }}</b></p>{% endfor %}</section><section class="admin-panel"><h2>Calendar Legend</h2>{% for item in ["Quiz / Test","Assignment","Project","Exam","Lab","Other"] %}<p class="legend-line"><i></i>{{ item }}</p>{% endfor %}</section></aside></div>{{ summary_note() }}
+
+<!-- ===== DOCUMENTS ===== -->
+{% elif page.kind == "documents" %}
+{{ metric_cards(page.stats) }}
+<section class="student-filter-panel"><label><input placeholder="Search documents..."></label><label>Category<select><option>All Categories</option></select></label><label>Academic Year<select><option>2024/2025</option></select></label><label>Semester<select><option>All Semesters</option></select></label><button class="btn btn-primary"><i class="bi bi-cloud-upload"></i> Upload Document</button></section>
+<section class="admin-panel"><table class="admin-table student-table"><thead><tr><th>#</th><th>Document Name</th><th>Category</th><th>Academic Year</th><th>Semester</th><th>File Type</th><th>File Size</th><th>Uploaded By</th><th>Upload Date</th><th>Actions</th></tr></thead><tbody>{% for name,cat,type,size,by in [("PLO Handbook (Student Guide)","Guidelines","PDF","2.45 MB","Admin"),("PLO Assessment Policy","Guidelines","PDF","1.32 MB","Admin"),("Assessment Rubric Example","Assessment","PDF","1.85 MB","Dr. Dara"),("PLO Mapping (Course to PLO)","Academic","Excel","512 KB","Dr. Dara"),("PLO Report by Program (2024)","Reports","PDF","3.21 MB","Admin"),("Course CLO Alignment Guide","Guidelines","PDF","112 MB","Admin"),("PLO Presentation (Overview)","Other","PPTX","4.78 MB","Dr. Dara"),("Assessment Schedule (Sem 1)","Assessment","PDF","820 KB","Admin"),("PLO Survey Questions","Other","DOCX","256 KB","Dr. Dara"),("Student PLO Attainment Data","Reports","Excel","1.05 MB","Admin")] %}<tr><td>{{ loop.index }}</td><td><i class="bi bi-file-earmark-text text-primary"></i> <strong>{{ name }}</strong></td><td><span class="data-badge {{ 'green' if cat == 'Guidelines' else 'purple' if cat == 'Assessment' else 'orange' }}">{{ cat }}</span></td><td>2024/2025</td><td>{{ "Semester 1" if loop.index in [4,8,10] else "-" }}</td><td><span class="data-badge {{ 'red' if type == 'PDF' else 'green' if type == 'Excel' else 'blue' }}">{{ type }}</span></td><td>{{ size }}</td><td>{{ by }}</td><td>May {{ 16 - loop.index }}, 2025<br>10:30 AM</td><td><button class="icon-only"><i class="bi bi-download"></i></button><button class="icon-only"><i class="bi bi-eye"></i></button></td></tr>{% endfor %}</tbody></table></section>{{ summary_note() }}
+
+{% endif %}
+
+<style>
+/* ========================================
+   STUDENT ROLE - MANAGER STYLE OVERRIDES
+   ======================================== */
+
+/* --- SIDEBAR --- */
+/* Match Manager sidebar style */
+.sidebar {
+  width: 260px !important;
+  background: #0b1f4d !important;
+  color: #fff !important;
+  min-height: 100vh !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  bottom: 0 !important;
+  z-index: 100 !important;
+  overflow-y: auto !important;
+  padding: 0 !important;
+  transition: transform 0.3s ease !important;
+}
+
+.sidebar-brand {
+  padding: 20px 20px 16px !important;
+  border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+}
+
+.sidebar-brand img {
+  height: 38px !important;
+  width: auto !important;
+}
+
+.sidebar-brand h1 {
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  color: #fff !important;
+  margin: 0 !important;
+  letter-spacing: -0.5px !important;
+}
+
+.sidebar-section {
+  padding: 18px 20px 8px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  color: rgba(255,255,255,0.35) !important;
+}
+
+.sidebar-nav {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.sidebar-nav li {
+  margin: 2px 8px !important;
+}
+
+.sidebar-nav li a {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 10px 14px !important;
+  border-radius: 8px !important;
+  color: rgba(255,255,255,0.6) !important;
+  text-decoration: none !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  transition: all 0.15s ease !important;
+}
+
+.sidebar-nav li a i {
+  font-size: 18px !important;
+  width: 22px !important;
+  text-align: center !important;
+  flex-shrink: 0 !important;
+}
+
+.sidebar-nav li a:hover {
+  background: rgba(255,255,255,0.08) !important;
+  color: #fff !important;
+}
+
+.sidebar-nav li.active a {
+  background: #1a3a7a !important;
+  color: #fff !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2) !important;
+}
+
+.sidebar-nav li.active a i {
+  color: #5b9aff !important;
+}
+
+/* Logout button - match Manager style */
+.sidebar-logout {
+  margin: 16px 8px !important;
+  padding-top: 12px !important;
+  border-top: 1px solid rgba(255,255,255,0.08) !important;
+}
+
+.sidebar-logout a {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 10px 14px !important;
+  border-radius: 8px !important;
+  color: rgba(255,255,255,0.5) !important;
+  text-decoration: none !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  transition: all 0.15s ease !important;
+}
+
+.sidebar-logout a i {
+  font-size: 18px !important;
+  width: 22px !important;
+  text-align: center !important;
+}
+
+.sidebar-logout a:hover {
+  background: rgba(255,50,50,0.15) !important;
+  color: #ff6b6b !important;
+}
+
+/* --- TOP HEADING BAR --- */
+/* Match Manager heading bar */
+.page-header {
+  background: #fff !important;
+  padding: 16px 30px !important;
+  border-bottom: 1px solid #e5edf8 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  min-height: 72px !important;
+  margin-left: 260px !important;
+}
+
+.page-header-left {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+}
+
+.page-header-left .breadcrumb {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-size: 13px !important;
+  color: #64748b !important;
+}
+
+.page-header-left .breadcrumb a {
+  color: #0d6efd !important;
+  text-decoration: none !important;
+}
+
+.page-header-left .breadcrumb a:hover {
+  text-decoration: underline !important;
+}
+
+.page-header-left h1 {
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  color: #0b1f4d !important;
+  margin: 0 !important;
+}
+
+.page-header-left p {
+  font-size: 14px !important;
+  color: #64748b !important;
+  margin: 0 !important;
+}
+
+.page-header-right {
+  display: flex !important;
+  align-items: center !important;
+  gap: 16px !important;
+}
+
+.page-header-right .notifications {
+  position: relative !important;
+  width: 40px !important;
+  height: 40px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 50% !important;
+  background: #f1f4f9 !important;
+  color: #0b1f4d !important;
+  font-size: 18px !important;
+  cursor: pointer !important;
+  transition: background 0.15s ease !important;
+}
+
+.page-header-right .notifications:hover {
+  background: #e5edf8 !important;
+}
+
+.page-header-right .notifications .badge {
+  position: absolute !important;
+  top: -4px !important;
+  right: -4px !important;
+  background: #ef4444 !important;
+  color: #fff !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  width: 20px !important;
+  height: 20px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.page-header-right .profile {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 6px 14px 6px 10px !important;
+  border-radius: 30px !important;
+  background: #f1f4f9 !important;
+  cursor: pointer !important;
+  transition: background 0.15s ease !important;
+}
+
+.page-header-right .profile:hover {
+  background: #e5edf8 !important;
+}
+
+.page-header-right .profile .avatar {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 50% !important;
+  background: #0d6efd !important;
+  color: #fff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-weight: 700 !important;
+  font-size: 14px !important;
+}
+
+.page-header-right .profile .name {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #0b1f4d !important;
+}
+
+.page-header-right .profile .role {
+  font-size: 12px !important;
+  color: #64748b !important;
+}
+
+/* --- CONTENT AREA --- */
+/* Match Manager content spacing */
+.main-content {
+  margin-left: 260px !important;
+  padding: 24px 30px 40px !important;
+  background: #f8fafc !important;
+  min-height: calc(100vh - 72px) !important;
+}
+
+/* --- CARDS --- */
+/* Match Manager card style */
+.admin-panel,
+.student-panel {
+  background: #fff !important;
+  border: 1px solid #e5edf8 !important;
+  border-radius: 14px !important;
+  padding: 20px 24px !important;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.04) !important;
+  transition: box-shadow 0.2s ease !important;
+  margin-bottom: 20px !important;
+}
+
+.admin-panel:hover,
+.student-panel:hover {
+  box-shadow: 0 8px 24px rgba(15,23,42,0.06) !important;
+}
+
+.admin-panel h2,
+.student-panel h2 {
+  font-size: 17px !important;
+  font-weight: 800 !important;
+  color: #0b1f4d !important;
+  margin: 0 0 16px 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.admin-panel h2 i,
+.student-panel h2 i {
+  color: #64748b !important;
+  font-size: 16px !important;
+}
+
+/* --- METRIC CARDS --- */
+/* Match Manager metric cards */
+.admin-metric-grid,
+.student-metric-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important;
+  gap: 16px !important;
+  margin-bottom: 24px !important;
+}
+
+.admin-metric-grid.six,
+.student-metric-grid.six {
+  grid-template-columns: repeat(6, 1fr) !important;
+}
+
+.admin-metric-grid.five,
+.student-metric-grid.five {
+  grid-template-columns: repeat(5, 1fr) !important;
+}
+
+.admin-metric-card,
+.student-metric-card {
+  background: #fff !important;
+  border: 1px solid #e5edf8 !important;
+  border-radius: 12px !important;
+  padding: 16px 18px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 14px !important;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.04) !important;
+  transition: all 0.15s ease !important;
+}
+
+.admin-metric-card:hover,
+.student-metric-card:hover {
+  box-shadow: 0 4px 16px rgba(15,23,42,0.08) !important;
+  transform: translateY(-2px) !important;
+}
+
+.admin-metric-card .admin-stat-icon,
+.student-metric-card .student-stat-icon {
+  width: 44px !important;
+  height: 44px !important;
+  border-radius: 10px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 20px !important;
+  flex-shrink: 0 !important;
+}
+
+.admin-metric-card .admin-stat-icon.blue,
+.student-metric-card .student-stat-icon.blue {
+  background: #eff6ff !important;
+  color: #0d6efd !important;
+}
+
+.admin-metric-card .admin-stat-icon.green,
+.student-metric-card .student-stat-icon.green {
+  background: #ecfdf5 !important;
+  color: #10b981 !important;
+}
+
+.admin-metric-card .admin-stat-icon.orange,
+.student-metric-card .student-stat-icon.orange {
+  background: #fffbeb !important;
+  color: #f59e0b !important;
+}
+
+.admin-metric-card .admin-stat-icon.purple,
+.student-metric-card .student-stat-icon.purple {
+  background: #f5f3ff !important;
+  color: #8b5cf6 !important;
+}
+
+.admin-metric-card .admin-stat-icon.red,
+.student-metric-card .student-stat-icon.red {
+  background: #fef2f2 !important;
+  color: #ef4444 !important;
+}
+
+.admin-metric-card .admin-stat-icon.cyan,
+.student-metric-card .student-stat-icon.cyan {
+  background: #ecfeff !important;
+  color: #06b6d4 !important;
+}
+
+.admin-metric-card div,
+.student-metric-card div {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 2px !important;
+  min-width: 0 !important;
+}
+
+.admin-metric-card em,
+.student-metric-card em {
+  font-size: 12px !important;
+  font-style: normal !important;
+  color: #64748b !important;
+  font-weight: 600 !important;
+}
+
+.admin-metric-card strong,
+.student-metric-card strong {
+  font-size: 20px !important;
+  font-weight: 800 !important;
+  color: #0b1f4d !important;
+  line-height: 1.2 !important;
+}
+
+.admin-metric-card small,
+.student-metric-card small {
+  font-size: 11px !important;
+  color: #94a3b8 !important;
+  font-weight: 500 !important;
+}
+
+/* --- FILTERS --- */
+/* Match Manager filter style */
+.student-filter-panel,
+.filter-panel {
+  background: #fff !important;
+  border: 1px solid #e5edf8 !important;
+  border-radius: 14px !important;
+  padding: 16px 20px !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 12px 16px !important;
+  margin-bottom: 20px !important;
+  box-shadow: 0 2px 8px rgba(15,23,42,0.04) !important;
+}
+
+.student-filter-panel label,
+.filter-panel label {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #0b1f4d !important;
+}
+
+.student-filter-panel select,
+.filter-panel select,
+.student-filter-panel input,
+.filter-panel input {
+  height: 38px !important;
+  border: 1px solid #dbe5f1 !important;
+  border-radius: 8px !important;
+  padding: 0 12px !important;
+  background: #fff !important;
+  color: #0b1f4d !important;
+  font-size: 13px !important;
+  min-width: 140px !important;
+  outline: none !important;
+  transition: border-color 0.15s ease !important;
+}
+
+.student-filter-panel select:focus,
+.filter-panel select:focus,
+.student-filter-panel input:focus,
+.filter-panel input:focus {
+  border-color: #0d6efd !important;
+  box-shadow: 0 0 0 3px rgba(13,110,253,0.08) !important;
+}
+
+.student-filter-panel .btn,
+.filter-panel .btn {
+  height: 38px !important;
+  padding: 0 18px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+
+.student-filter-panel .btn-outline-primary,
+.filter-panel .btn-outline-primary {
+  border: 1px solid #0d6efd !important;
+  background: transparent !important;
+  color: #0d6efd !important;
+}
+
+.student-filter-panel .btn-outline-primary:hover,
+.filter-panel .btn-outline-primary:hover {
+  background: #0d6efd !important;
+  color: #fff !important;
+}
+
+.student-filter-panel .btn-primary,
+.filter-panel .btn-primary {
+  border: 1px solid #0d6efd !important;
+  background: #0d6efd !important;
+  color: #fff !important;
+}
+
+.student-filter-panel .btn-primary:hover,
+.filter-panel .btn-primary:hover {
+  background: #0759c7 !important;
+  border-color: #0759c7 !important;
+}
+
+/* --- TABLES --- */
+/* Match Manager table style */
+.admin-table,
+.student-table {
+  width: 100% !important;
+  border-collapse: collapse !important;
+  font-size: 14px !important;
+}
+
+.admin-table thead th,
+.student-table thead th {
+  background: #f8fafc !important;
+  color: #0b1f4d !important;
+  font-weight: 700 !important;
+  font-size: 12px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.3px !important;
+  padding: 12px 14px !important;
+  text-align: left !important;
+  border-bottom: 2px solid #e5edf8 !important;
+}
+
+.admin-table tbody td,
+.student-table tbody td {
+  padding: 11px 14px !important;
+  border-bottom: 1px solid #eef3f8 !important;
+  color: #0b1f4d !important;
+  vertical-align: middle !important;
+}
+
+.admin-table tbody tr:hover,
+.student-table tbody tr:hover {
+  background: #f8fafc !important;
+}
+
+.admin-table tbody tr:last-child td,
+.student-table tbody tr:last-child td {
+  border-bottom: none !important;
+}
+
+/* Table badges */
+.data-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 4px 10px !important;
+  border-radius: 12px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  white-space: nowrap !important;
+}
+
+.data-badge.green {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+}
+
+.data-badge.blue {
+  background: #dbeafe !important;
+  color: #1d4ed8 !important;
+}
+
+.data-badge.orange {
+  background: #fef3c7 !important;
+  color: #92400e !important;
+}
+
+.data-badge.red {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+}
+
+.data-badge.purple {
+  background: #f3e8ff !important;
+  color: #6b21a8 !important;
+}
+
+.data-badge.gray {
+  background: #f1f5f9 !important;
+  color: #475569 !important;
+}
+
+/* Action buttons in tables */
+.row-actions {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+}
+
+.row-actions a,
+.row-actions button {
+  width: 32px !important;
+  height: 32px !important;
+  border: none !important;
+  background: transparent !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #64748b !important;
+  font-size: 15px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  text-decoration: none !important;
+}
+
+.row-actions a:hover,
+.row-actions button:hover {
+  background: #eef3f8 !important;
+  color: #0b1f4d !important;
+}
+
+.row-actions .delete-icon {
+  color: #ef4444 !important;
+}
+
+.row-actions .delete-icon:hover {
+  background: #fef2f2 !important;
+  color: #dc2626 !important;
+}
+
+.icon-only {
+  width: 32px !important;
+  height: 32px !important;
+  border: none !important;
+  background: transparent !important;
+  border-radius: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #64748b !important;
+  font-size: 15px !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+
+.icon-only:hover {
+  background: #eef3f8 !important;
+  color: #0b1f4d !important;
+}
+
+/* --- CHARTS --- */
+/* Match Manager chart style */
+.teacher-colored-bars,
+.student-main-bars {
+  display: flex !important;
+  align-items: flex-end !important;
+  height: 200px !important;
+  gap: 10px !important;
+  padding: 0 4px !important;
+  position: relative !important;
+}
+
+.teacher-colored-bars div,
+.student-main-bars div {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  height: 100% !important;
+  position: relative !important;
+}
+
+.teacher-colored-bars b,
+.student-main-bars b {
+  width: 100% !important;
+  max-width: 48px !important;
+  min-height: 4px !important;
+  border-radius: 6px 6px 0 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  padding-top: 6px !important;
+  font-size: 10px !important;
+  color: #fff !important;
+  font-weight: 700 !important;
+  transition: height 0.3s ease !important;
+}
+
+.teacher-colored-bars small,
+.student-main-bars small {
+  margin-top: 6px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #0b1f4d !important;
+}
+
+.target-line-red {
+  position: absolute !important;
+  top: 30% !important;
+  left: 0 !important;
+  right: 0 !important;
+  border-top: 2px dashed #ef4444 !important;
+  opacity: 0.5 !important;
+  pointer-events: none !important;
+}
+
+/* --- LEGEND --- */
+.chart-legend {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 16px !important;
+  margin-top: 12px !important;
+  padding-top: 12px !important;
+  border-top: 1px solid #eef3f8 !important;
+}
+
+.chart-legend span {
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  font-size: 13px !important;
+  color: #475569 !important;
+}
+
+.chart-legend i.green {
+  width: 12px !important;
+  height: 12px !important;
+  border-radius: 3px !important;
+  background: #22c55e !important;
+  display: inline-block !important;
+}
+
+.chart-legend i.red {
+  width: 12px !important;
+  height: 12px !important;
+  border-radius: 3px !important;
+  background: #ef4444 !important;
+  display: inline-block !important;
+}
+
+.chart-legend i.blue {
+  width: 12px !important;
+  height: 12px !important;
+  border-radius: 3px !important;
+  background: #0d6efd !important;
+  display: inline-block !important;
+}
+
+.chart-legend i.dash {
+  width: 20px !important;
+  height: 2px !important;
+  border-top: 2px dashed #ef4444 !important;
+  display: inline-block !important;
+}
+
+/* --- STUDENT NOTE --- */
+/* Keep the read-only note styled nicely */
+.student-note {
+  background: #f0f7ff !important;
+  border: 1px solid #bfdbfe !important;
+  border-radius: 10px !important;
+  padding: 14px 18px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex-wrap: wrap !important;
+  margin-top: 16px !important;
+  color: #1e40af !important;
+  font-size: 14px !important;
+}
+
+.student-note i {
+  font-size: 20px !important;
+  color: #3b82f6 !important;
+}
+
+.student-note strong {
+  font-weight: 700 !important;
+}
+
+.student-note span {
+  margin-left: auto !important;
+  font-size: 12px !important;
+  color: #6b7a91 !important;
+}
+
+/* --- PROGRESS BARS --- */
+.student-progress-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+}
+
+.student-progress-row i {
+  display: block !important;
+  width: 80px !important;
+  height: 6px !important;
+  background: #eef3f8 !important;
+  border-radius: 4px !important;
+  overflow: hidden !important;
+  position: relative !important;
+}
+
+.student-progress-row i em {
+  display: block !important;
+  height: 100% !important;
+  background: #0d6efd !important;
+  border-radius: 4px !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+}
+
+.student-progress-row b {
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  color: #0b1f4d !important;
+}
+
+/* --- RESPONSIVE --- */
+@media (max-width: 1200px) {
+  .admin-metric-grid.six,
+  .student-metric-grid.six {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+  .admin-metric-grid.five,
+  .student-metric-grid.five {
+    grid-template-columns: repeat(3, 1fr) !important;
+  }
+}
+
+@media (max-width: 992px) {
+  .sidebar {
+    transform: translateX(-100%) !important;
+    width: 280px !important;
+  }
+  .sidebar.open {
+    transform: translateX(0) !important;
+  }
+  .main-content,
+  .page-header {
+    margin-left: 0 !important;
+  }
+  .page-header {
+    padding: 14px 20px !important;
+  }
+  .main-content {
+    padding: 16px 20px 30px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .admin-metric-grid,
+  .student-metric-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .admin-metric-grid.six,
+  .student-metric-grid.six,
+  .admin-metric-grid.five,
+  .student-metric-grid.five {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+  .page-header {
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 12px !important;
+  }
+  .page-header-right {
+    width: 100% !important;
+    justify-content: flex-end !important;
+  }
+  .page-header-left h1 {
+    font-size: 18px !important;
+  }
+  .student-filter-panel {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .student-filter-panel label {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .student-filter-panel select,
+  .student-filter-panel input {
+    width: 100% !important;
+    min-width: unset !important;
+  }
+  .admin-panel,
+  .student-panel {
+    padding: 14px 16px !important;
+  }
+  .admin-table thead th,
+  .student-table thead th {
+    font-size: 10px !important;
+    padding: 8px 10px !important;
+  }
+  .admin-table tbody td,
+  .student-table tbody td {
+    padding: 8px 10px !important;
+    font-size: 13px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .admin-metric-grid,
+  .student-metric-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .admin-metric-grid.six,
+  .student-metric-grid.six,
+  .admin-metric-grid.five,
+  .student-metric-grid.five {
+    grid-template-columns: 1fr !important;
+  }
+  .page-header {
+    padding: 12px 16px !important;
+  }
+  .main-content {
+    padding: 12px 16px 24px !important;
+  }
+}
+
+/* --- HAMBURGER MENU TOGGLE --- */
+.menu-toggle {
+  display: none !important;
+  background: transparent !important;
+  border: none !important;
+  font-size: 24px !important;
+  color: #0b1f4d !important;
+  cursor: pointer !important;
+  padding: 4px !important;
+}
+
+@media (max-width: 992px) {
+  .menu-toggle {
+    display: block !important;
+  }
+  .sidebar-overlay {
+    display: none !important;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    background: rgba(0,0,0,0.4) !important;
+    z-index: 99 !important;
+  }
+  .sidebar-overlay.active {
+    display: block !important;
+  }
+}
+
+/* --- OVERALL CONSISTENCY --- */
+/* Ensure all Student pages use the same base styles */
+body.student-role {
+  background: #f8fafc !important;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif !important;
+  color: #0b1f4d !important;
+}
+
+/* Fix any remaining Student-specific styles that might differ */
+.student-report-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 20px !important;
+}
+
+.student-report-grid.two {
+  grid-template-columns: 1fr 1fr !important;
+}
+
+.student-calendar-grid {
+  display: grid !important;
+  grid-template-columns: 1fr 340px !important;
+  gap: 20px !important;
+}
+
+.student-grid-2 {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr !important;
+  gap: 20px !important;
+}
+
+.student-grid-3 {
+  display: grid !important;
+  grid-template-columns: 1fr 1fr 1fr !important;
+  gap: 20px !important;
+}
+
+/* Status dots */
+.status-dot {
+  display: inline-block !important;
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 50% !important;
+  margin-right: 6px !important;
+}
+
+.status-dot.blue {
+  background: #0d6efd !important;
+}
+
+.status-dot.green {
+  background: #22c55e !important;
+}
+
+.status-dot.orange {
+  background: #f59e0b !important;
+}
+
+.status-dot.red {
+  background: #ef4444 !important;
+}
+
+/* Donut charts */
+.donut-with-list {
+  display: flex !important;
+  align-items: center !important;
+  gap: 24px !important;
+}
+
+.status-donut {
+  width: 100px !important;
+  height: 100px !important;
+  border-radius: 50% !important;
+  background: #eef3f8 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-shrink: 0 !important;
+}
+
+.status-donut div {
+  text-align: center !important;
+}
+
+.status-donut strong {
+  display: block !important;
+  font-size: 24px !important;
+  font-weight: 800 !important;
+  color: #0b1f4d !important;
+  line-height: 1 !important;
+}
+
+.status-donut span {
+  font-size: 11px !important;
+  color: #64748b !important;
+  font-weight: 600 !important;
+}
+
+.legend-list {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 6px !important;
+}
+
+.legend-list p {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 0 !important;
+  font-size: 13px !important;
+  color: #475569 !important;
+}
+
+.legend-list i {
+  width: 12px !important;
+  height: 12px !important;
+  border-radius: 3px !important;
+  flex-shrink: 0 !important;
+}
+
+.legend-list i.green {
+  background: #22c55e !important;
+}
+
+.legend-list i.red {
+  background: #ef4444 !important;
+}
+
+.legend-list i.orange {
+  background: #f59e0b !important;
+}
+
+.legend-list i.gray {
+  background: #94a3b8 !important;
+}
+
+.legend-list strong {
+  margin-left: auto !important;
+  font-weight: 700 !important;
+  color: #0b1f4d !important;
+}
+
+/* Calendar */
+.student-calendar {
+  display: grid !important;
+  grid-template-columns: repeat(7, 1fr) !important;
+  gap: 4px !important;
+}
+
+.student-calendar div {
+  border: 1px solid #eef3f8 !important;
+  border-radius: 6px !important;
+  padding: 6px 8px !important;
+  min-height: 70px !important;
+  background: #fff !important;
+}
+
+.student-calendar div b {
+  display: block !important;
+  font-size: 13px !important;
+  color: #0b1f4d !important;
+  margin-bottom: 4px !important;
+}
+
+.student-calendar .cal-event {
+  display: block !important;
+  font-size: 10px !important;
+  padding: 2px 4px !important;
+  border-radius: 3px !important;
+  margin-top: 2px !important;
+  font-weight: 600 !important;
+  line-height: 1.2 !important;
+}
+
+.student-calendar .cal-event.green {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+}
+
+.student-calendar .cal-event.orange {
+  background: #fef3c7 !important;
+  color: #92400e !important;
+}
+
+.student-calendar .cal-event.purple {
+  background: #f3e8ff !important;
+  color: #6b21a8 !important;
+}
+
+.calendar-toolbar {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-bottom: 16px !important;
+  flex-wrap: wrap !important;
+}
+
+.calendar-toolbar h2 {
+  font-size: 18px !important;
+  font-weight: 800 !important;
+  color: #0b1f4d !important;
+  margin: 0 8px 0 4px !important;
+}
+
+.calendar-toolbar .btn {
+  padding: 6px 14px !important;
+  border-radius: 6px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+.event-row {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 8px 0 !important;
+  border-bottom: 1px solid #eef3f8 !important;
+  margin: 0 !important;
+}
+
+.event-row:last-child {
+  border-bottom: none !important;
+}
+
+.event-row i {
+  color: #0d6efd !important;
+  font-size: 16px !important;
+}
+
+.event-row span {
+  flex: 1 !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #0b1f4d !important;
+}
+
+.event-row span small {
+  display: block !important;
+  font-weight: 400 !important;
+  color: #64748b !important;
+  font-size: 11px !important;
+}
+
+.event-row b {
+  font-size: 12px !important;
+  color: #64748b !important;
+  font-weight: 600 !important;
+}
+
+.legend-line {
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 6px 0 !important;
+  margin: 0 !important;
+  font-size: 13px !important;
+  color: #475569 !important;
+}
+
+.legend-line i {
+  width: 14px !important;
+  height: 14px !important;
+  border-radius: 3px !important;
+  display: inline-block !important;
+  flex-shrink: 0 !important;
+}
+
+.legend-line i:first-child {
+  background: #0d6efd !important;
+}
+.legend-line i:nth-child(2) {
+  background: #22c55e !important;
+}
+.legend-line i:nth-child(3) {
+  background: #8b5cf6 !important;
+}
+.legend-line i:nth-child(4) {
+  background: #f59e0b !important;
+}
+.legend-line i:nth-child(5) {
+  background: #ef4444 !important;
+}
+.legend-line i:nth-child(6) {
+  background: #64748b !important;
+}
+
+/* Heat table */
+.heat-table td {
+  text-align: center !important;
+}
+
+.heat-table .heat-good {
+  background: #dcfce7 !important;
+  color: #166534 !important;
+  font-weight: 700 !important;
+}
+
+.heat-table .heat-bad {
+  background: #fee2e2 !important;
+  color: #991b1b !important;
+  font-weight: 700 !important;
+}
+
+/* CLO bars */
+.clo-bars b {
+  background: #20b455 !important;
+}
+
+.clo-bars b[style*="background: #ff7a1a"] {
+  background: #ff7a1a !important;
+}
+
+.clo-bars b[style*="background: #ef3f61"] {
+  background: #ef3f61 !important;
+}
+
+/* Student tabs */
+.student-tabs {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  flex-wrap: wrap !important;
+  margin-bottom: 16px !important;
+  padding-bottom: 12px !important;
+  border-bottom: 1px solid #eef3f8 !important;
+}
+
+.student-tabs b {
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  color: #0b1f4d !important;
+}
+
+.student-tabs span {
+  padding: 4px 12px !important;
+  border-radius: 20px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #64748b !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+}
+
+.student-tabs span:hover {
+  background: #eef3f8 !important;
+  color: #0b1f4d !important;
+}
+
+.student-tabs small {
+  font-size: 13px !important;
+  color: #94a3b8 !important;
+  margin-left: auto !important;
+}
+
+.student-tabs label {
+  position: relative !important;
+  display: inline-block !important;
+}
+
+.student-tabs input {
+  height: 36px !important;
+  border: 1px solid #dbe5f1 !important;
+  border-radius: 8px !important;
+  padding: 0 12px !important;
+  font-size: 13px !important;
+  min-width: 200px !important;
+  outline: none !important;
+}
+
+.student-tabs input:focus {
+  border-color: #0d6efd !important;
+  box-shadow: 0 0 0 3px rgba(13,110,253,0.08) !important;
+}
+
+.student-tabs .btn {
+  height: 36px !important;
+  padding: 0 14px !important;
+  border-radius: 8px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+}
+
+/* Overall progress */
+.student-overall {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  margin-left: auto !important;
+  padding: 6px 14px !important;
+  border-radius: 10px !important;
+  background: #eef6ff !important;
+}
+
+.student-overall b {
+  font-size: 22px !important;
+  font-weight: 800 !important;
+  color: #0d6efd !important;
+}
+
+.student-overall span {
+  font-size: 12px !important;
+  color: #475569 !important;
+  line-height: 1.3 !important;
+}
+
+/* Panel bottom link */
+.panel-bottom-link {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  margin-top: 12px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #0d6efd !important;
+  text-decoration: none !important;
+  transition: all 0.15s ease !important;
+}
+
+.panel-bottom-link:hover {
+  color: #0759c7 !important;
+  text-decoration: underline !important;
+}
+
+.mt-3 {
+  margin-top: 16px !important;
+}
+
+.mt-4 {
+  margin-top: 20px !important;
+}
+
+.mx-auto {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.text-success {
+  color: #166534 !important;
+}
+
+.text-danger {
+  color: #991b1b !important;
+}
+
+.text-primary {
+  color: #0d6efd !important;
+}
+
+.fw-bold {
+  font-weight: 700 !important;
+}
+
+.student-total {
+  font-size: 15px !important;
+  font-weight: 600 !important;
+  color: #475569 !important;
+  margin-top: 12px !important;
+  padding-top: 12px !important;
+  border-top: 1px solid #eef3f8 !important;
+}
+
+.student-total b {
+  color: #0b1f4d !important;
+}
+
+/* Responsive fixes for student grids */
+@media (max-width: 992px) {
+  .student-report-grid,
+  .student-report-grid.two,
+  .student-grid-2 {
+    grid-template-columns: 1fr !important;
+  }
+  .student-grid-3 {
+    grid-template-columns: 1fr 1fr !important;
+  }
+  .student-calendar-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .student-calendar {
+    grid-template-columns: repeat(7, 1fr) !important;
+  }
+}
+
+@media (max-width: 576px) {
+  .student-grid-3 {
+    grid-template-columns: 1fr !important;
+  }
+  .student-calendar {
+    grid-template-columns: repeat(4, 1fr) !important;
+  }
+  .student-tabs {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .student-tabs small {
+    margin-left: 0 !important;
+  }
+  .student-tabs input {
+    width: 100% !important;
+    min-width: unset !important;
+  }
+  .student-overall {
+    margin-left: 0 !important;
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}
+
+/* Line chart */
+.student-line-chart {
+  width: 100% !important;
+  padding: 8px 0 !important;
+}
+
+.student-line-chart svg {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 200px !important;
+}
+
+/* Fix for the target line in charts */
+.teacher-colored-bars em,
+.student-main-bars em {
+  position: absolute !important;
+  top: 26% !important;
+  right: 4px !important;
+  font-size: 11px !important;
+  font-style: normal !important;
+  color: #ef4444 !important;
+  font-weight: 600 !important;
+  opacity: 0.7 !important;
+}
+
+/* Teacher donut in student pages */
+.teacher-donut {
+  width: 80px !important;
+  height: 80px !important;
+}
+
+.teacher-donut strong {
+  font-size: 20px !important;
+}
+
+.compact .legend-list p {
+  font-size: 12px !important;
+}
+
+/* PLO Report specific styles */
+.student-total {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    background: #f8fafc;
+    border-radius: 8px;
+    font-size: 14px;
+}
+
+.student-total b {
+    color: #0b1f4d;
+}
+
+.student-total .ms-3 {
+    margin-left: 16px;
+}
+
+.heat-good {
+    background: #dcfce7 !important;
+    color: #166534 !important;
+    font-weight: 700 !important;
+}
+
+.heat-bad {
+    background: #fee2e2 !important;
+    color: #991b1b !important;
+    font-weight: 700 !important;
+}
+
+.student-line-chart {
+    width: 100%;
+    padding: 8px 0;
+    background: #fff;
+    border-radius: 8px;
+}
+
+.student-line-chart svg {
+    width: 100%;
+    height: auto;
+    max-height: 200px;
+    background: #fff;
+}
+
+/* Filter panel improvements */
+.student-filter-panel select,
+.student-filter-panel input {
+    min-width: 140px;
+}
+
+@media (max-width: 768px) {
+    .student-filter-panel select,
+    .student-filter-panel input {
+        min-width: 100%;
+    }
+    .student-total {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .student-total .ms-3 {
+        margin-left: 0;
+    }
+}
+
+/* Student My Scores specific styles */
+.student-spider-container {
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.text-center {
+    text-align: center;
+}
+
+/* Course detail expandable rows */
+#course-details tr {
+    background: #f8fafc !important;
+}
+
+#course-details td {
+    padding: 1rem !important;
+}
+
+/* Chart legend for spider graph */
+.chart-legend i {
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    display: inline-block;
+    margin-right: 4px;
+}
+
+.student-sheet-block {
+    border: 1px solid #dbe5f3;
+    border-radius: 14px;
+    margin: 14px 0;
+    background: #fff;
+    overflow: hidden;
+}
+
+.student-sheet-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 16px;
+    background: #f6f9fd;
+    border-bottom: 1px solid #dbe5f3;
+}
+
+.student-sheet-head strong {
+    display: block;
+    color: #071d49;
+    font-size: 16px;
+}
+
+.student-sheet-head small {
+    display: block;
+    color: #64748b;
+    margin-top: 3px;
+}
+
+.student-spider-panel {
+    min-height: 360px;
+}
+
+.student-spider-summary {
+    display: grid;
+    grid-template-columns: minmax(260px, 360px) 1fr;
+    gap: 20px;
+    align-items: center;
+}
+
+.student-spider-summary svg {
+    width: 100%;
+    max-width: 360px;
+    height: auto;
+    overflow: visible;
+}
+
+.student-spider-ring {
+    fill: none;
+    stroke: #dbe5f3;
+    stroke-width: 0.55;
+}
+
+.student-spider-axis {
+    stroke: #e3eaf5;
+    stroke-width: 0.45;
+}
+
+.student-spider-shape {
+    fill: rgba(13, 110, 253, 0.18);
+    stroke: #0d6efd;
+    stroke-width: 1.4;
+}
+
+.student-spider-summary text {
+    font-size: 4px;
+    font-weight: 800;
+    fill: #102b63;
+}
+
+.student-spider-values {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 8px;
+}
+
+.student-spider-values p {
+    margin: 0;
+    padding: 9px 10px;
+    border: 1px solid #e1eaf6;
+    border-radius: 10px;
+    background: #fff;
+}
+
+.student-spider-values span,
+.student-spider-values small {
+    display: block;
+    color: #64748b;
+    font-size: 12px;
+}
+
+.student-spider-values strong {
+    display: block;
+    color: #0b1f4d;
+    font-size: 18px;
+}
+
+.student-spider-values strong.success { color: #16a34a; }
+.student-spider-values strong.danger { color: #ef4444; }
+.student-spider-values strong.muted { color: #94a3b8; }
+
+@media (max-width: 900px) {
+    .student-spider-summary {
+        grid-template-columns: 1fr;
+    }
+    .student-sheet-head {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+</style>
+{% endblock %}
