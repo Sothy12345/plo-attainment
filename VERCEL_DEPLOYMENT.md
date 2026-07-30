@@ -2,14 +2,18 @@
 
 ## 1. Push the project to GitHub
 
-Keep `api/index.py`, `vercel.json`, `requirements.txt`, `app/`, and the database
-file at the project root. Do not commit `.env`, exported browser-cookie files,
-virtual environments, or database backups.
+Keep `main.py`, `requirements.txt`, `app/`, and the database file at the project
+root. Do not commit `.env`, exported browser-cookie files, virtual environments,
+or database backups.
 
 ## 2. Import the repository in Vercel
 
 In Vercel, choose **Add New → Project**, import the repository, leave the
 framework preset as **Other**, and deploy from the repository root.
+
+Vercel automatically detects the FastAPI application exported by the root-level
+`main.py`. The project intentionally has no `vercel.json`: no rewrite or custom
+function configuration is required.
 
 ## 3. Add environment variables
 
